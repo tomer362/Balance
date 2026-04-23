@@ -1,0 +1,16 @@
+{
+  "name": "Balance Nutrition Tracker",
+  "short_name": "Balance",
+  "description": "Smart nutrition tracking for PCOS and Bulk modes",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#FAF6F0",
+  "theme_color": "#8FA989",
+  "icons": [
+    {
+      "src": "/favicon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml"
+    }
+  ]
+}
