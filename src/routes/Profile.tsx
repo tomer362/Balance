@@ -1,9 +1,9 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, ChevronRight, Plus, User, Trash2, X, Download, Upload } from 'lucide-react';
+import { ArrowLeft, ChevronRight, Plus, User, Trash2, X, Download, Upload, Info } from 'lucide-react';
 import { useAppStore, selectActiveProfile } from '../store/appStore';
 import type { Profile } from '../store/appStore';
-import { computePCOSTargets, computeBulkTargets } from '../lib/targetComputation';
+import { computePCOSTargets, computeBulkTargets, computeMaintainTargets } from '../lib/targetComputation';
 import { getCurrentPhase } from '../lib/cyclePhase';
 
 const CONCERNS = ['Insulin resistance', 'Weight', 'Hirsutism', 'Acne', 'Fertility', 'Irregular cycles'];
@@ -52,24 +52,28 @@ function AddProfileModal({ onClose }: { onClose: () => void }) {
 
   function create() {
     const id = `user-${Date.now()}`;
-    const profile: Profile = {
+    const draft: Profile = {
       id,
       name: name.trim() || 'New Profile',
       mode,
       demographics: { sex: 'other', age: 25, height_cm: 170, weight_kg: 70, goal_weight_kg: 70, activity_level: 'moderate' },
-      targets: { calories: 2000, protein_g: 100, fat_g: 65, carbs_g: 250, fiber_g: 30, omega3_g: 2.0, meals_per_day_target: 4 },
+      targets: { calories: 2000, protein_g: 100, fat_g: 65, carbs_g: 250 }, // overwritten below
       foodLog: [],
       mealPlan: {},
       weightHistory: [{ date: new Date().toISOString().split('T')[0], kg: 70 }],
       customRecipes: [],
       preferences: { dietary_flags: [], dislikes: [] },
       ...(mode === 'pcos'
-        ? { pcos: { concerns: [], cycle: { avgCycleLength: 28, avgPeriodLength: 5, history: [] }, symptomLog: [], seedCyclingEnabled: false } }
+        ? { pcos: { concerns: [], goal: 'lose_weight' as const, cycle: { avgCycleLength: 28, avgPeriodLength: 5, history: [] }, symptomLog: [], seedCyclingEnabled: false } }
         : mode === 'bulk'
-        ? { bulk: { surplus_kcal: 300, protein_g_per_kg: 2.0, trainingSchedule: { weekPattern: ['training', 'rest', 'training', 'rest', 'training', 'training', 'rest'] }, supplements: [] } }
+        ? { bulk: { surplus_kcal: 300, protein_g_per_kg: 2.0, trainingSchedule: { weekPattern: ['training', 'rest', 'training', 'rest', 'training', 'training', 'rest'] as Array<'training' | 'rest'> }, supplements: [] } }
         : {}),
     };
-    addProfile(profile);
+    draft.targets =
+      mode === 'pcos' ? computePCOSTargets(draft) :
+      mode === 'bulk' ? computeBulkTargets(draft) :
+      computeMaintainTargets(draft);
+    addProfile(draft);
     setActiveProfile(id);
     onClose();
   }
@@ -136,6 +140,7 @@ export default function Profile() {
 
   const [showProfileSwitcher, setShowProfileSwitcher] = useState(false);
   const [showAddModal, setShowAddModal] = useState(false);
+  const [planInfoMode, setPlanInfoMode] = useState<Profile['mode'] | null>(null);
 
   if (!profile) return null;
 
@@ -145,7 +150,33 @@ export default function Profile() {
       ? computePCOSTargets(profile)
       : profile.mode === 'bulk'
       ? computeBulkTargets(profile)
-      : profile.targets;
+      : computeMaintainTargets(profile);
+
+  /** Switch mode and seed the mode-specific sub-object if it doesn't exist yet */
+  function switchMode(m: Profile['mode']) {
+    if (!profile) return;
+    const updates: Partial<Profile> = { mode: m };
+    if (m === 'bulk' && !profile.bulk) {
+      updates.bulk = {
+        surplus_kcal: 300,
+        protein_g_per_kg: 2.0,
+        trainingSchedule: {
+          weekPattern: ['training', 'rest', 'training', 'rest', 'training', 'training', 'rest'],
+        },
+        supplements: [],
+      };
+    }
+    if (m === 'pcos' && !profile.pcos) {
+      updates.pcos = {
+        concerns: [],
+        goal: 'lose_weight',
+        cycle: { avgCycleLength: 28, avgPeriodLength: 5, history: [] },
+        symptomLog: [],
+        seedCyclingEnabled: false,
+      };
+    }
+    updateProfile(profile.id, updates);
+  }
 
   function toggleConcern(concern: string) {
     if (!profile?.pcos) return;
@@ -262,7 +293,7 @@ export default function Profile() {
                   </div>
                   <div className="flex-1">
                     <p className="text-sm font-medium text-plum-dark">{p.name}</p>
-                    <p className="text-xs text-ink-40 capitalize">{p.mode} Mode</p>
+                    <p className="text-xs text-ink-40">{p.mode === 'pcos' ? 'PCOS Mode' : p.mode === 'bulk' ? 'Bulk Mode' : 'Maintain'}</p>
                   </div>
                   {p.id === activeId && <span className="text-xs text-sage-deep font-medium">(active)</span>}
                 </button>
@@ -290,21 +321,29 @@ export default function Profile() {
         <Section title="Mode">
           <div className="space-y-2">
             {(['pcos', 'bulk', 'maintain'] as const).map((m) => (
-              <button
-                key={m}
-                data-testid={`mode-${m}`}
-                onClick={() => updateProfile(profile.id, { mode: m })}
-                className="w-full flex items-center gap-3 py-1"
-              >
-                <div className={`w-4 h-4 rounded-full border-2 flex items-center justify-center ${
-                  profile.mode === m ? 'border-sage-deep' : 'border-sand'
-                }`}>
-                  {profile.mode === m && <div className="w-2 h-2 rounded-full bg-sage-deep" />}
-                </div>
-                <span className="text-sm text-plum-dark capitalize">
-                  {m === 'pcos' ? 'PCOS Mode' : m === 'bulk' ? 'Bulk Mode' : 'Maintain'}
-                </span>
-              </button>
+              <div key={m} className="flex items-center gap-3 py-1">
+                <button
+                  data-testid={`mode-${m}`}
+                  onClick={() => switchMode(m)}
+                  className="flex items-center gap-3 flex-1 text-left"
+                >
+                  <div className={`w-4 h-4 rounded-full border-2 flex items-center justify-center flex-shrink-0 ${
+                    profile.mode === m ? 'border-sage-deep' : 'border-sand'
+                  }`}>
+                    {profile.mode === m && <div className="w-2 h-2 rounded-full bg-sage-deep" />}
+                  </div>
+                  <span className="text-sm text-plum-dark">
+                    {m === 'pcos' ? 'PCOS Mode' : m === 'bulk' ? 'Bulk Mode' : 'Maintain'}
+                  </span>
+                </button>
+                <button
+                  onClick={() => setPlanInfoMode(m)}
+                  className="tap-target flex items-center justify-center text-ink-40 hover:text-sage-deep transition-colors"
+                  aria-label={`About ${m} mode`}
+                >
+                  <Info size={16} />
+                </button>
+              </div>
             ))}
           </div>
         </Section>
@@ -443,6 +482,109 @@ export default function Profile() {
           </Section>
         )}
 
+        {/* Body metrics — editable */}
+        <Section title="Body metrics">
+          <div className="space-y-3">
+            {/* Sex */}
+            <div className="flex items-center justify-between">
+              <span className="text-sm text-ink-60">Sex</span>
+              <div className="flex gap-1.5">
+                {(['female', 'male', 'other'] as const).map((s) => (
+                  <button
+                    key={s}
+                    onClick={() => updateProfile(profile.id, { demographics: { ...profile.demographics, sex: s } })}
+                    className={`px-2.5 py-1 rounded-lg text-xs font-medium capitalize transition-all ${
+                      profile.demographics.sex === s ? 'bg-sage-deep text-white' : 'bg-sand text-ink-60'
+                    }`}
+                  >
+                    {s}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Age */}
+            <div className="flex items-center justify-between">
+              <span className="text-sm text-ink-60">Age</span>
+              <input
+                data-testid="metrics-age"
+                type="number" min="10" max="120"
+                value={profile.demographics.age}
+                onChange={(e) => {
+                  const v = Math.max(10, Math.min(120, Number(e.target.value)));
+                  if (!isNaN(v) && v > 0) updateProfile(profile.id, { demographics: { ...profile.demographics, age: v } });
+                }}
+                className="w-20 px-2 py-1 rounded-lg border border-sand bg-cream-bg text-sm text-right text-plum-dark font-mono-num focus:outline-none focus:border-sage-primary"
+              />
+            </div>
+
+            {/* Height */}
+            <div className="flex items-center justify-between">
+              <span className="text-sm text-ink-60">Height (cm)</span>
+              <input
+                data-testid="metrics-height"
+                type="number" min="100" max="250"
+                value={profile.demographics.height_cm}
+                onChange={(e) => {
+                  const v = Math.max(100, Math.min(250, Number(e.target.value)));
+                  if (!isNaN(v) && v > 0) updateProfile(profile.id, { demographics: { ...profile.demographics, height_cm: v } });
+                }}
+                className="w-20 px-2 py-1 rounded-lg border border-sand bg-cream-bg text-sm text-right text-plum-dark font-mono-num focus:outline-none focus:border-sage-primary"
+              />
+            </div>
+
+            {/* Weight */}
+            <div className="flex items-center justify-between">
+              <span className="text-sm text-ink-60">Weight (kg)</span>
+              <input
+                data-testid="metrics-weight"
+                type="number" min="20" max="300" step="0.1"
+                value={profile.demographics.weight_kg}
+                onChange={(e) => {
+                  const v = Math.max(20, Math.min(300, Number(e.target.value)));
+                  if (!isNaN(v) && v > 0) updateProfile(profile.id, { demographics: { ...profile.demographics, weight_kg: v } });
+                }}
+                className="w-20 px-2 py-1 rounded-lg border border-sand bg-cream-bg text-sm text-right text-plum-dark font-mono-num focus:outline-none focus:border-sage-primary"
+              />
+            </div>
+
+            {/* Goal weight */}
+            <div className="flex items-center justify-between">
+              <span className="text-sm text-ink-60">Goal weight (kg)</span>
+              <input
+                data-testid="metrics-goal-weight"
+                type="number" min="20" max="300" step="0.1"
+                value={profile.demographics.goal_weight_kg}
+                onChange={(e) => {
+                  const v = Math.max(20, Math.min(300, Number(e.target.value)));
+                  if (!isNaN(v) && v > 0) updateProfile(profile.id, { demographics: { ...profile.demographics, goal_weight_kg: v } });
+                }}
+                className="w-20 px-2 py-1 rounded-lg border border-sand bg-cream-bg text-sm text-right text-plum-dark font-mono-num focus:outline-none focus:border-sage-primary"
+              />
+            </div>
+
+            {/* Activity level */}
+            <div className="flex items-center justify-between">
+              <span className="text-sm text-ink-60">Activity level</span>
+              <select
+                data-testid="metrics-activity"
+                value={profile.demographics.activity_level}
+                onChange={(e) => updateProfile(profile.id, {
+                  demographics: { ...profile.demographics, activity_level: e.target.value as Profile['demographics']['activity_level'] },
+                })}
+                className="rounded-lg border border-sand bg-cream-bg text-xs text-plum-dark px-2 py-1.5 focus:outline-none focus:border-sage-primary"
+              >
+                <option value="sedentary">Sedentary</option>
+                <option value="light">Lightly active</option>
+                <option value="moderate">Moderately active</option>
+                <option value="active">Active</option>
+                <option value="very_active">Very active</option>
+              </select>
+            </div>
+          </div>
+          <p className="text-[10px] text-ink-40 mt-3">All targets recalculate instantly when you update these values.</p>
+        </Section>
+
         {/* Daily targets */}
         <Section title="Daily targets (auto-computed)">
           <div className="space-y-2">
@@ -456,9 +598,12 @@ export default function Profile() {
                 { label: 'Omega-3', val: `${computedTargets.omega3_g}g` },
                 { label: 'Max GL/day', val: String(computedTargets.max_glycemic_load) },
               ] : profile.mode === 'bulk' ? [
+                { label: 'Fiber', val: `${computedTargets.fiber_g}g` },
                 { label: 'Training day cal', val: `${computedTargets.calories_training_day} kcal` },
                 { label: 'Rest day cal', val: `${computedTargets.calories_rest_day} kcal` },
-              ] : []),
+              ] : [
+                { label: 'Fiber', val: `${computedTargets.fiber_g}g` },
+              ]),
             ].map(({ label, val }) => (
               <div key={label} className="flex items-center justify-between">
                 <span className="text-sm text-ink-60">{label}</span>
@@ -492,6 +637,12 @@ export default function Profile() {
                   <div className="flex justify-between text-xs">
                     <span className="text-ink-60">Surplus</span>
                     <span className="font-semibold text-plum-dark font-mono-num">+{profile.bulk?.surplus_kcal ?? 300} kcal</span>
+                  </div>
+                )}
+                {profile.mode === 'maintain' && (
+                  <div className="flex justify-between text-xs">
+                    <span className="text-ink-60">Adjustment</span>
+                    <span className="font-semibold text-plum-dark font-mono-num">0 kcal</span>
                   </div>
                 )}
                 <div className="flex justify-between text-xs border-t border-sand pt-1.5 mt-1">
@@ -531,7 +682,7 @@ export default function Profile() {
               <div className="w-8 h-8 rounded-full bg-sage-primary/20 flex items-center justify-center text-sm">👤</div>
               <div className="flex-1">
                 <p className="text-sm font-medium text-plum-dark">{p.name}</p>
-                <p className="text-xs text-ink-40 capitalize">{p.mode} Mode</p>
+                <p className="text-xs text-ink-40">{p.mode === 'pcos' ? 'PCOS Mode' : p.mode === 'bulk' ? 'Bulk Mode' : 'Maintain'}</p>
               </div>
               {p.id === activeId && <span className="text-xs text-sage-deep font-medium">(you)</span>}
             </div>
@@ -590,9 +741,108 @@ export default function Profile() {
 
       {/* Add profile modal */}
       {showAddModal && <AddProfileModal onClose={() => setShowAddModal(false)} />}
+
+      {/* Plan info modal */}
+      {planInfoMode && (
+        <PlanInfoModal
+          mode={planInfoMode}
+          profile={profile}
+          tdee={computedTargets.tdee ?? 2000}
+          onClose={() => setPlanInfoMode(null)}
+        />
+      )}
     </div>
   );
 }
+
+// ─── Plan info modal ──────────────────────────────────────────────────────────
+
+function PlanInfoModal({
+  mode,
+  profile,
+  tdee,
+  onClose,
+}: {
+  mode: 'pcos' | 'bulk' | 'maintain';
+  profile: Profile;
+  tdee: number;
+  onClose: () => void;
+}) {
+  const { weight_kg } = profile.demographics;
+
+  const content = {
+    pcos: {
+      title: 'PCOS Mode',
+      subtitle: 'Supports insulin sensitivity & hormone balance',
+      points: [
+        `Your maintenance (TDEE): ${tdee} kcal/day`,
+        (profile.pcos?.goal ?? 'lose_weight') === 'lose_weight'
+          ? `300 kcal deficit → ${Math.max(1200, tdee - 300)} kcal target for gradual fat loss`
+          : `No deficit → ${tdee} kcal at maintenance to preserve hormonal balance`,
+        `High protein (${Math.round(weight_kg * 1.5)}g / 1.5 g per kg) reduces insulin spikes`,
+        'Phase-aware meals align macros with your menstrual cycle',
+        'Daily fiber (30g) and omega-3 (3g) targets help reduce inflammation',
+      ],
+    },
+    bulk: {
+      title: 'Bulk Mode',
+      subtitle: 'Maximizes lean muscle growth',
+      points: [
+        `Your maintenance (TDEE): ${tdee} kcal/day`,
+        `+${profile.bulk?.surplus_kcal ?? 300} kcal surplus → ${tdee + (profile.bulk?.surplus_kcal ?? 300)} kcal/day to fuel muscle growth`,
+        `High protein (${Math.round(weight_kg * (profile.bulk?.protein_g_per_kg ?? 2.0))}g / ${profile.bulk?.protein_g_per_kg ?? 2.0} g per kg) maximizes muscle protein synthesis`,
+        'Training days: +150 kcal with extra carbs for performance',
+        'Rest days: −150 kcal to minimize fat accumulation',
+      ],
+    },
+    maintain: {
+      title: 'Maintain Mode',
+      subtitle: 'Keeps weight stable with balanced nutrition',
+      points: [
+        `Your TDEE: ${tdee} kcal/day — this becomes your daily calorie target`,
+        'No deficit or surplus — calories match what you burn',
+        `Protein target: ${Math.round(weight_kg * 1.2)}g / day (1.2 g per kg — WHO recommendation)`,
+        'Balanced macros (30% fat, ~50% carbs) support energy and long-term health',
+        'Focus on food quality and consistency rather than restriction',
+      ],
+    },
+  }[mode];
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-end justify-center bg-black/40 px-4 pb-6"
+      onClick={onClose}
+    >
+      <div
+        className="w-full max-w-sm bg-cream-bg rounded-3xl p-5 space-y-3 shadow-xl"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <h3 className="font-semibold text-plum-dark">{content.title}</h3>
+            <p className="text-xs text-ink-40 mt-0.5">{content.subtitle}</p>
+          </div>
+          <button onClick={onClose} className="tap-target flex items-center justify-center flex-shrink-0">
+            <X size={20} className="text-ink-40" />
+          </button>
+        </div>
+        <div className="space-y-2">
+          {content.points.map((point, i) => (
+            <div key={i} className="flex items-start gap-2">
+              <span className="text-sage-deep font-bold mt-0.5 flex-shrink-0 text-xs">•</span>
+              <p className="text-sm text-ink-60">{point}</p>
+            </div>
+          ))}
+        </div>
+        <p className="text-[10px] text-ink-40 pt-2 border-t border-sand">
+          Targets recalculate automatically when you update your body metrics.
+        </p>
+      </div>
+    </div>
+  );
+}
+
+// ─── sub-components ───────────────────────────────────────────────────────────
 
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
