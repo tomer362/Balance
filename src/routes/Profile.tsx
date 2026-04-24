@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ArrowLeft, ChevronRight, Plus, User, Trash2, X, Download, Upload, Info } from 'lucide-react';
 import { useAppStore, selectActiveProfile } from '../store/appStore';
-import type { Profile } from '../store/appStore';
+import type { Profile, Targets } from '../store/appStore';
 import { computePCOSTargets, computeBulkTargets, computeMaintainTargets } from '../lib/targetComputation';
 import { getCurrentPhase } from '../lib/cyclePhase';
 
@@ -141,6 +141,7 @@ export default function Profile() {
   const [showProfileSwitcher, setShowProfileSwitcher] = useState(false);
   const [showAddModal, setShowAddModal] = useState(false);
   const [planInfoMode, setPlanInfoMode] = useState<Profile['mode'] | null>(null);
+  const [showScienceModal, setShowScienceModal] = useState(false);
 
   if (!profile) return null;
 
@@ -615,7 +616,17 @@ export default function Profile() {
           {/* TDEE breakdown card */}
           {computedTargets.tdee != null && (
             <div className="mt-4 pt-3 border-t border-sand">
-              <p className="text-xs text-ink-40 mb-2">How your calories were calculated</p>
+              <div className="flex items-center justify-between mb-2">
+                <p className="text-xs text-ink-40">How your calories were calculated</p>
+                <button
+                  data-testid="open-science-modal"
+                  onClick={() => setShowScienceModal(true)}
+                  className="flex items-center gap-1 text-[11px] text-sage-deep font-medium"
+                >
+                  <Info size={12} />
+                  Full details
+                </button>
+              </div>
               <div className="bg-sand/50 rounded-xl p-3 space-y-1.5">
                 <div className="flex justify-between text-xs">
                   <span className="text-ink-60">TDEE (maintenance)</span>
@@ -751,6 +762,15 @@ export default function Profile() {
           onClose={() => setPlanInfoMode(null)}
         />
       )}
+
+      {/* Science / calculations modal */}
+      {showScienceModal && (
+        <ScienceModal
+          profile={profile}
+          computedTargets={computedTargets}
+          onClose={() => setShowScienceModal(false)}
+        />
+      )}
     </div>
   );
 }
@@ -837,6 +857,235 @@ function PlanInfoModal({
         <p className="text-[10px] text-ink-40 pt-2 border-t border-sand">
           Targets recalculate automatically when you update your body metrics.
         </p>
+      </div>
+    </div>
+  );
+}
+
+// ─── Science modal ────────────────────────────────────────────────────────────
+
+function ScienceModal({
+  profile,
+  computedTargets,
+  onClose,
+}: {
+  profile: Profile;
+  computedTargets: Targets;
+  onClose: () => void;
+}) {
+  const { sex, age, height_cm, weight_kg, activity_level } = profile.demographics;
+  const w = weight_kg > 0 ? weight_kg : 70;
+  const h = height_cm > 0 ? height_cm : 170;
+  const a = age > 0 ? age : 25;
+  const base = 10 * w + 6.25 * h - 5 * a;
+  const sexConstant = sex === 'male' ? 5 : sex === 'female' ? -161 : -78;
+  const bmr = Math.round(base + sexConstant);
+  const tdee = computedTargets.tdee ?? bmr;
+
+  const ACTIVITY_ROWS: Array<{ key: string; label: string; mult: number }> = [
+    { key: 'sedentary',   label: 'Sedentary',          mult: 1.2   },
+    { key: 'light',       label: 'Lightly active',      mult: 1.375 },
+    { key: 'moderate',    label: 'Moderately active',   mult: 1.55  },
+    { key: 'active',      label: 'Active',              mult: 1.725 },
+    { key: 'very_active', label: 'Very active',         mult: 1.9   },
+  ];
+
+  const REFS = [
+    {
+      label: 'Mifflin et al. (1990)',
+      desc: 'BMR formula — Am J Clin Nutr',
+      url: 'https://pubmed.ncbi.nlm.nih.gov/2305711/',
+    },
+    {
+      label: 'Morton et al. (2018)',
+      desc: 'Protein for muscle gain — Br J Sports Med',
+      url: 'https://pubmed.ncbi.nlm.nih.gov/28698222/',
+    },
+    {
+      label: 'Simopoulos (2002)',
+      desc: 'Omega-3/omega-6 ratio — Biomed Pharmacother',
+      url: 'https://pubmed.ncbi.nlm.nih.gov/12442909/',
+    },
+    {
+      label: 'WHO Healthy Diet',
+      desc: 'Fiber ≥25 g/day, macronutrient ranges',
+      url: 'https://www.who.int/news-room/fact-sheets/detail/healthy-diet',
+    },
+  ];
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-end justify-center bg-black/40 px-4 pb-6"
+      onClick={onClose}
+      data-testid="science-modal"
+    >
+      <div
+        className="w-full max-w-sm bg-cream-bg rounded-3xl shadow-xl overflow-hidden"
+        onClick={(e) => e.stopPropagation()}
+      >
+        {/* Header */}
+        <div className="flex items-center justify-between px-5 pt-5 pb-3">
+          <div>
+            <h3 className="font-semibold text-plum-dark">How targets are calculated</h3>
+            <p className="text-xs text-ink-40 mt-0.5">Evidence-based formulas</p>
+          </div>
+          <button onClick={onClose} className="tap-target flex items-center justify-center flex-shrink-0">
+            <X size={20} className="text-ink-40" />
+          </button>
+        </div>
+
+        <div className="overflow-y-auto max-h-[70vh] px-5 pb-5 space-y-5">
+          {/* Step 1 — BMR */}
+          <div>
+            <p className="text-xs font-bold text-ink-40 uppercase tracking-wide mb-2">Step 1 — Basal Metabolic Rate (BMR)</p>
+            <div className="bg-sand/50 rounded-xl p-3 font-mono text-xs text-plum-dark leading-relaxed">
+              <p>BMR = 10×{w} + 6.25×{h} − 5×{a} {sexConstant >= 0 ? `+ ${sexConstant}` : `− ${Math.abs(sexConstant)}`}</p>
+              <p className="mt-1 text-sage-deep font-bold">= {bmr} kcal/day</p>
+            </div>
+            <p className="text-[10px] text-ink-40 mt-1.5">
+              Sex constant: male +5 · female −161 · other −78 (average of male/female)
+            </p>
+          </div>
+
+          {/* Step 2 — TDEE */}
+          <div>
+            <p className="text-xs font-bold text-ink-40 uppercase tracking-wide mb-2">Step 2 — Total Daily Energy Expenditure (TDEE)</p>
+            <div className="rounded-xl overflow-hidden border border-sand" data-testid="activity-table">
+              {ACTIVITY_ROWS.map((row) => (
+                <div
+                  key={row.key}
+                  className={`flex items-center justify-between px-3 py-2 text-xs border-b border-sand last:border-0 ${
+                    row.key === activity_level ? 'bg-sage-primary/15' : ''
+                  }`}
+                >
+                  <span className={row.key === activity_level ? 'text-plum-dark font-semibold' : 'text-ink-60'}>
+                    {row.label}{row.key === activity_level && ' (you)'}
+                  </span>
+                  <span className={`font-mono-num ${row.key === activity_level ? 'text-sage-deep font-bold' : 'text-ink-40'}`}>
+                    ×{row.mult}
+                  </span>
+                </div>
+              ))}
+            </div>
+            <div className="bg-sand/50 rounded-xl p-3 mt-2 font-mono text-xs text-plum-dark">
+              <p>TDEE = {bmr} × {ACTIVITY_ROWS.find((r) => r.key === activity_level)?.mult ?? 1.55}</p>
+              <p className="mt-1 text-sage-deep font-bold">= {tdee} kcal/day</p>
+            </div>
+          </div>
+
+          {/* Step 3 — Mode macros */}
+          <div>
+            <p className="text-xs font-bold text-ink-40 uppercase tracking-wide mb-2">
+              Step 3 — Macro targets ({profile.mode === 'pcos' ? 'PCOS Mode' : profile.mode === 'bulk' ? 'Bulk Mode' : 'Maintain'})
+            </p>
+            {profile.mode === 'pcos' && (
+              <div className="space-y-1.5 text-xs text-ink-60">
+                <p>
+                  <span className="font-semibold text-plum-dark">Calories: </span>
+                  {tdee} − {(profile.pcos?.goal ?? 'lose_weight') === 'manage_symptoms' ? 0 : 300} ={' '}
+                  <span className="text-sage-deep font-bold">{computedTargets.calories} kcal</span>
+                  {(profile.pcos?.goal ?? 'lose_weight') === 'manage_symptoms' && ' (no deficit — symptom management)'}
+                </p>
+                <p>
+                  <span className="font-semibold text-plum-dark">Protein: </span>
+                  {w} kg × 1.5 g/kg = <span className="text-sage-deep font-bold">{computedTargets.protein_g}g</span>
+                  {' '}— supports insulin sensitivity
+                </p>
+                <p>
+                  <span className="font-semibold text-plum-dark">Fat: </span>
+                  30% × {computedTargets.calories} ÷ 9 = <span className="text-sage-deep font-bold">{computedTargets.fat_g}g</span>
+                </p>
+                <p>
+                  <span className="font-semibold text-plum-dark">Carbs: </span>
+                  remainder = <span className="text-sage-deep font-bold">{computedTargets.carbs_g}g</span>
+                </p>
+                <p>
+                  <span className="font-semibold text-plum-dark">Fiber: </span>
+                  <span className="text-sage-deep font-bold">30g</span>/day — reduces androgen levels
+                </p>
+                <p>
+                  <span className="font-semibold text-plum-dark">Omega-3: </span>
+                  <span className="text-sage-deep font-bold">3g</span>/day — reduces inflammation
+                </p>
+              </div>
+            )}
+            {profile.mode === 'bulk' && (
+              <div className="space-y-1.5 text-xs text-ink-60">
+                <p>
+                  <span className="font-semibold text-plum-dark">Calories: </span>
+                  {tdee} + {profile.bulk?.surplus_kcal ?? 300} (surplus) ={' '}
+                  <span className="text-sage-deep font-bold">{computedTargets.calories} kcal</span>
+                </p>
+                <p>
+                  <span className="font-semibold text-plum-dark">Protein: </span>
+                  {w} kg × {profile.bulk?.protein_g_per_kg ?? 2.0} g/kg ={' '}
+                  <span className="text-sage-deep font-bold">{computedTargets.protein_g}g</span>
+                  {' '}— maximizes muscle protein synthesis
+                </p>
+                <p>
+                  <span className="font-semibold text-plum-dark">Fat: </span>
+                  25% × {computedTargets.calories} ÷ 9 = <span className="text-sage-deep font-bold">{computedTargets.fat_g}g</span>
+                </p>
+                <p>
+                  <span className="font-semibold text-plum-dark">Carbs: </span>
+                  remainder = <span className="text-sage-deep font-bold">{computedTargets.carbs_g}g</span>
+                </p>
+                <p>
+                  <span className="font-semibold text-plum-dark">Training day: </span>
+                  +150 kcal = <span className="text-sage-deep font-bold">{computedTargets.calories_training_day} kcal</span>
+                </p>
+                <p>
+                  <span className="font-semibold text-plum-dark">Rest day: </span>
+                  −150 kcal = <span className="text-sage-deep font-bold">{computedTargets.calories_rest_day} kcal</span>
+                </p>
+              </div>
+            )}
+            {profile.mode === 'maintain' && (
+              <div className="space-y-1.5 text-xs text-ink-60">
+                <p>
+                  <span className="font-semibold text-plum-dark">Calories: </span>
+                  TDEE = <span className="text-sage-deep font-bold">{computedTargets.calories} kcal</span> (no deficit or surplus)
+                </p>
+                <p>
+                  <span className="font-semibold text-plum-dark">Protein: </span>
+                  {w} kg × 1.2 g/kg = <span className="text-sage-deep font-bold">{computedTargets.protein_g}g</span>
+                  {' '}— WHO recommendation
+                </p>
+                <p>
+                  <span className="font-semibold text-plum-dark">Fat: </span>
+                  30% × {computedTargets.calories} ÷ 9 = <span className="text-sage-deep font-bold">{computedTargets.fat_g}g</span>
+                </p>
+                <p>
+                  <span className="font-semibold text-plum-dark">Carbs: </span>
+                  remainder = <span className="text-sage-deep font-bold">{computedTargets.carbs_g}g</span>
+                </p>
+                <p>
+                  <span className="font-semibold text-plum-dark">Fiber: </span>
+                  <span className="text-sage-deep font-bold">25g</span>/day (WHO minimum)
+                </p>
+              </div>
+            )}
+          </div>
+
+          {/* References */}
+          <div className="pt-3 border-t border-sand">
+            <p className="text-[10px] font-bold text-ink-40 uppercase tracking-wide mb-2">References</p>
+            <div className="space-y-2">
+              {REFS.map((ref) => (
+                <a
+                  key={ref.url}
+                  href={ref.url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex items-start gap-1.5 group"
+                >
+                  <span className="text-[10px] text-sage-deep group-hover:underline font-medium leading-snug">{ref.label}</span>
+                  <span className="text-[10px] text-ink-40 leading-snug">— {ref.desc}</span>
+                </a>
+              ))}
+            </div>
+          </div>
+        </div>
       </div>
     </div>
   );
