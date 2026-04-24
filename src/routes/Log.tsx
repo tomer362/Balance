@@ -752,6 +752,7 @@ function IngredientRow({
       </div>
       <button
         onClick={onAdd}
+        data-testid="ingredient-add-btn"
         className="tap-target w-10 h-10 rounded-full bg-coral-accent text-white flex items-center justify-center flex-shrink-0 active:scale-95 transition-transform"
       >
         {actionLabel === '+' ? <Plus size={18} /> : <ChevronRight size={16} />}
