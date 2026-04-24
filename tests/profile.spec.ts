@@ -40,9 +40,9 @@ test.describe('Profile page', () => {
   });
 
   test('phase-aware toggle is visible with 44px hit area', async ({ page }) => {
-    const toggles = page.getByTestId('toggle');
-    await expect(toggles.first()).toBeVisible();
-    const box = await toggles.first().boundingBox();
+    const toggle = page.getByTestId('toggle-phase-aware');
+    await expect(toggle).toBeVisible();
+    const box = await toggle.boundingBox();
     expect(box!.width).toBeGreaterThanOrEqual(44);
     expect(box!.height).toBeGreaterThanOrEqual(44);
   });
@@ -81,12 +81,12 @@ test.describe('Profile page', () => {
     await expect(input).toHaveValue('75');
   });
 
-  test('changing weight immediately updates TDEE in breakdown', async ({ page }) => {
+  test('changing weight updates TDEE in breakdown after blur', async ({ page }) => {
     // female, 30yo, 168cm, moderate:  new BMR = 10*80 + 6.25*168 - 5*30 - 161 = 1539
     // TDEE = round(1539 * 1.55) = 2385
     const weightInput = page.getByTestId('metrics-weight');
     await weightInput.fill('80');
-    await weightInput.dispatchEvent('change');
+    await weightInput.blur();
     await expect(page.getByText('2385 kcal')).toBeVisible({ timeout: 3000 });
   });
 
@@ -191,5 +191,34 @@ test.describe('Profile page', () => {
     // The X close button is inside the modal content (stops propagation)
     await page.getByTestId('science-modal').locator('button').last().click();
     await expect(page.getByTestId('science-modal')).not.toBeVisible({ timeout: 2000 });
+  });
+
+  // ── Toggle interaction ───────────────────────────────────────────────────────
+
+  test('seed cycling toggle has unique testid and is interactive', async ({ page }) => {
+    const toggle = page.getByTestId('toggle-seed-cycling');
+    await expect(toggle).toBeVisible();
+    const before = await toggle.getAttribute('aria-pressed');
+    await toggle.click();
+    const after = await toggle.getAttribute('aria-pressed');
+    expect(after).not.toBe(before);
+  });
+
+  // ── Goal weight hint ─────────────────────────────────────────────────────────
+
+  test('goal hint appears after editing a metric and auto-dismisses', async ({ page }) => {
+    const weightInput = page.getByTestId('metrics-weight');
+    await weightInput.fill('80');
+    await weightInput.blur();
+    // Hint should appear
+    await expect(page.getByTestId('goal-weight-hint')).toBeVisible({ timeout: 2000 });
+    // Hint auto-dismisses after 5 s
+    await expect(page.getByTestId('goal-weight-hint')).not.toBeVisible({ timeout: 7000 });
+  });
+
+  // ── JSON export for AI review ────────────────────────────────────────────────
+
+  test('export for AI review button is visible in Data section', async ({ page }) => {
+    await expect(page.getByTestId('export-ai-review')).toBeVisible();
   });
 });
