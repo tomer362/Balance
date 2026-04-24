@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { ArrowRight, ChevronLeft } from 'lucide-react';
 import { useAppStore } from '../store/appStore';
 import type { Profile } from '../store/appStore';
-import { computePCOSTargets, computeBulkTargets } from '../lib/targetComputation';
+import { computePCOSTargets, computeBulkTargets, computeMaintainTargets } from '../lib/targetComputation';
 
 type AppMode = 'pcos' | 'bulk' | 'maintain';
 type PcosGoal = 'lose_weight' | 'manage_symptoms';
@@ -113,7 +113,7 @@ function buildProfile(
       ? computePCOSTargets(demo)
       : mode === 'bulk'
       ? computeBulkTargets(demo)
-      : { calories: 2000, protein_g: 100, fat_g: 65, carbs_g: 250, fiber_g: 30, omega3_g: 2.0, meals_per_day_target: 4 };
+      : computeMaintainTargets(demo);
 
   return demo;
 }

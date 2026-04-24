@@ -11,6 +11,7 @@ import { getSuggestions } from '../lib/suggestionEngine';
 import { getCurrentPhase, getPhaseName, getPhaseColor } from '../lib/cyclePhase';
 import { scoreFood } from '../lib/scoring';
 import BottomSheet from '../components/BottomSheet';
+import { computePCOSTargets, computeBulkTargets, computeMaintainTargets } from '../lib/targetComputation';
 
 function greetingByHour(): string {
   const h = new Date().getHours();
@@ -49,7 +50,14 @@ export default function Dashboard() {
   if (!profile) return null;
 
   const totals = sumNutrients(todayMeals.map((m) => m.nutrition));
-  const targets = profile.targets;
+  // Always compute targets live so changes to weight/height/mode in Profile
+  // are immediately reflected on the Dashboard without requiring a page reload.
+  const targets =
+    profile.mode === 'pcos'
+      ? computePCOSTargets(profile)
+      : profile.mode === 'bulk'
+      ? computeBulkTargets(profile)
+      : computeMaintainTargets(profile);
   const suggestions = getSuggestions(profile, 1);
   const topSuggestion = suggestions[0];
 

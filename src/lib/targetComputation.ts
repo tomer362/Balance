@@ -9,7 +9,11 @@ import type { Profile, Targets } from '../store/appStore';
  */
 function calculateBMR(profile: Profile): number {
   const { sex, age, height_cm, weight_kg } = profile.demographics;
-  const base = 10 * weight_kg + 6.25 * height_cm - 5 * age;
+  // Guard against zero/missing values — use physiologically plausible fallbacks
+  const w = weight_kg > 0 ? weight_kg : 70;
+  const h = height_cm > 0 ? height_cm : 170;
+  const a = age > 0 ? age : 25;
+  const base = 10 * w + 6.25 * h - 5 * a;
   if (sex === 'male') return base + 5;
   if (sex === 'female') return base - 161;
   // 'other': average of male (+5) and female (−161) constants = −78
@@ -98,6 +102,34 @@ export function computeBulkTargets(profile: Profile): Targets {
     carbs_rest_day: carbsRest,
     meals_per_day_target: 5,
     protein_per_meal_min: 30,
+    tdee,
+  };
+}
+
+/**
+ * Compute Maintain targets: eat at TDEE to keep weight stable.
+ *
+ * Protein: 1.2 g/kg (standard WHO/EFSA recommendation for healthy adults)
+ * Fat:     30% of calories
+ * Carbs:   remainder
+ */
+export function computeMaintainTargets(profile: Profile): Targets {
+  const tdee = calculateTDEE(profile);
+  const calories = tdee;
+
+  const protein_g = Math.round((profile.demographics.weight_kg > 0 ? profile.demographics.weight_kg : 70) * 1.2);
+  const fat_g = Math.round((calories * 0.30) / 9);
+  const carbs_g = Math.max(100, Math.round((calories - protein_g * 4 - fat_g * 9) / 4));
+
+  return {
+    calories,
+    protein_g,
+    fat_g,
+    carbs_g,
+    fiber_g: 25,
+    omega3_g: 2.0,
+    meals_per_day_target: 3,
+    protein_per_meal_min: 20,
     tdee,
   };
 }

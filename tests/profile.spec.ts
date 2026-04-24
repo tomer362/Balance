@@ -33,6 +33,12 @@ test.describe('Profile page', () => {
     await expect(page.getByText('Daily target', { exact: true })).toBeVisible();
   });
 
+  test('TDEE is computed live from demographics (not stale stored value)', async ({ page }) => {
+    // Test profile: female, 30yo, 168cm, 75kg, moderate
+    // BMR = 10*75 + 6.25*168 - 5*30 - 161 = 1489  →  TDEE = round(1489 * 1.55) = 2308
+    await expect(page.getByText('2308 kcal')).toBeVisible();
+  });
+
   test('phase-aware toggle is visible with 44px hit area', async ({ page }) => {
     const toggles = page.getByTestId('toggle');
     await expect(toggles.first()).toBeVisible();
@@ -42,10 +48,87 @@ test.describe('Profile page', () => {
   });
 
   test('mode selector: switching away from pcos hides PCOS section', async ({ page }) => {
-    // The PCOS section is visible for the test profile
     await expect(page.getByText('PCOS Profile')).toBeVisible();
-    // Switch to maintain — PCOS section should disappear
     await page.getByTestId('mode-maintain').click();
     await expect(page.getByText('PCOS Profile')).not.toBeVisible();
+  });
+
+  test('mode selector: switching to bulk seeds training schedule section', async ({ page }) => {
+    // The test profile has no bulk sub-object — switchMode() should seed one
+    await page.getByTestId('mode-bulk').click();
+    await expect(page.getByText('Training schedule')).toBeVisible();
+  });
+
+  test('mode selector: switching back to pcos restores PCOS section', async ({ page }) => {
+    await page.getByTestId('mode-bulk').click();
+    await expect(page.getByText('PCOS Profile')).not.toBeVisible();
+    await page.getByTestId('mode-pcos').click();
+    await expect(page.getByText('PCOS Profile')).toBeVisible();
+  });
+
+  // ── Body metrics ────────────────────────────────────────────────────────────
+
+  test('body metrics section is visible with editable fields', async ({ page }) => {
+    await expect(page.getByText('Body metrics')).toBeVisible();
+    await expect(page.getByTestId('metrics-weight')).toBeVisible();
+    await expect(page.getByTestId('metrics-height')).toBeVisible();
+    await expect(page.getByTestId('metrics-age')).toBeVisible();
+    await expect(page.getByTestId('metrics-activity')).toBeVisible();
+  });
+
+  test('body metrics weight input shows current weight', async ({ page }) => {
+    const input = page.getByTestId('metrics-weight');
+    await expect(input).toHaveValue('75');
+  });
+
+  test('changing weight immediately updates TDEE in breakdown', async ({ page }) => {
+    // female, 30yo, 168cm, moderate:  new BMR = 10*80 + 6.25*168 - 5*30 - 161 = 1539
+    // TDEE = round(1539 * 1.55) = 2385
+    const weightInput = page.getByTestId('metrics-weight');
+    await weightInput.fill('80');
+    await weightInput.dispatchEvent('change');
+    await expect(page.getByText('2385 kcal')).toBeVisible({ timeout: 3000 });
+  });
+
+  test('changing activity level updates TDEE', async ({ page }) => {
+    // female, 30yo, 168cm, 75kg, active: BMR=1489, TDEE = round(1489 * 1.725) = 2569
+    await page.getByTestId('metrics-activity').selectOption('active');
+    await expect(page.getByText('2569 kcal')).toBeVisible({ timeout: 3000 });
+  });
+
+  // ── Plan info popup ─────────────────────────────────────────────────────────
+
+  test('info buttons are visible next to each mode', async ({ page }) => {
+    // 3 info buttons — one per mode
+    const infoBtns = page.getByRole('button', { name: /About .* mode/i });
+    await expect(infoBtns).toHaveCount(3);
+  });
+
+  test('clicking pcos info button shows plan explanation modal', async ({ page }) => {
+    await page.getByRole('button', { name: /About pcos mode/i }).click();
+    await expect(page.getByRole('heading', { name: 'PCOS Mode' })).toBeVisible();
+    await expect(page.getByText(/insulin sensitivity/i)).toBeVisible();
+  });
+
+  test('clicking maintain info button shows maintain explanation', async ({ page }) => {
+    await page.getByRole('button', { name: /About maintain mode/i }).click();
+    await expect(page.getByText('Maintain Mode')).toBeVisible();
+    await expect(page.getByText(/weight stable/i)).toBeVisible();
+  });
+
+  test('plan info modal closes on backdrop click', async ({ page }) => {
+    await page.getByRole('button', { name: /About maintain mode/i }).click();
+    await expect(page.getByText('Maintain Mode')).toBeVisible();
+    // Click the backdrop (the overlay behind the modal)
+    await page.mouse.click(10, 10);
+    await expect(page.getByText(/weight stable/i)).not.toBeVisible({ timeout: 2000 });
+  });
+
+  // ── Maintain mode targets ───────────────────────────────────────────────────
+
+  test('maintain mode shows fiber in daily targets', async ({ page }) => {
+    await page.getByTestId('mode-maintain').click();
+    // Fiber row should appear in Daily targets section for maintain mode
+    await expect(page.getByText('Fiber')).toBeVisible();
   });
 });
