@@ -58,6 +58,7 @@ export default function MealCard({ meal, onDelete, onEdit }: MealCardProps) {
           <div className="flex gap-1 flex-shrink-0">
             {onEdit && (
               <button
+                data-testid="meal-card-edit"
                 onClick={onEdit}
                 className="p-1.5 rounded-lg text-ink-40 hover:text-sage-deep hover:bg-sand transition-colors"
               >

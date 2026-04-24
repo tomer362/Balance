@@ -1,10 +1,13 @@
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import { useNavigate } from 'react-router-dom';
 import { ArrowLeft, ChevronRight, Plus, User, Trash2, X, Download, Upload, Info } from 'lucide-react';
 import { useAppStore, selectActiveProfile } from '../store/appStore';
 import type { Profile, Targets } from '../store/appStore';
 import { computePCOSTargets, computeBulkTargets, computeMaintainTargets } from '../lib/targetComputation';
 import { getCurrentPhase } from '../lib/cyclePhase';
+import { sumNutrients } from '../lib/gapAnalysis';
+import { getSuggestions } from '../lib/suggestionEngine';
 
 const CONCERNS = ['Insulin resistance', 'Weight', 'Hirsutism', 'Acne', 'Fertility', 'Irregular cycles'];
 const DIETARY_FLAGS = ['Vegetarian', 'Vegan', 'Gluten-free', 'Dairy-limited', 'Nut-free'];
@@ -37,6 +40,59 @@ function exportCSV(profile: Profile): void {
   const a = document.createElement('a');
   a.href = url;
   a.download = `balance-${profile.name.replace(/\s/g, '-')}-${new Date().toISOString().split('T')[0]}.csv`;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+// ─── JSON AI-review export ────────────────────────────────────────────────────
+
+function exportAIReview(profile: Profile, computedTargets: Targets): void {
+  const today = new Date().toISOString().split('T')[0];
+  const todayMeals = profile.foodLog.filter((m) => m.timestamp.startsWith(today));
+  const totals = sumNutrients(todayMeals.map((m) => m.nutrition));
+  const suggestions = getSuggestions(profile, 5);
+
+  const remaining = {
+    calories: Math.max(0, computedTargets.calories - totals.calories),
+    protein_g: Math.max(0, computedTargets.protein_g - totals.protein_g),
+    carbs_g: Math.max(0, computedTargets.carbs_g - totals.carbs_g),
+    fat_g: Math.max(0, computedTargets.fat_g - totals.fat_g),
+    ...(computedTargets.fiber_g != null
+      ? { fiber_g: Math.max(0, computedTargets.fiber_g - (totals.fiber_g ?? 0)) }
+      : {}),
+  };
+
+  const data = {
+    exportedAt: new Date().toISOString(),
+    profile: {
+      id: profile.id,
+      name: profile.name,
+      mode: profile.mode,
+      demographics: profile.demographics,
+    },
+    computedTargets,
+    today: { meals: todayMeals, totals, remaining },
+    suggestions: suggestions.map((s) => ({
+      name: s.name,
+      calories: s.nutrition.calories,
+      protein_g: s.nutrition.protein_g,
+      score: s.pcos_score,
+      closedGaps: s.closedGaps,
+    })),
+    validationQuestions: [
+      'Are my macro targets appropriate for my current mode and demographics?',
+      'Are there any nutritional gaps I should address today?',
+      'Do the suggested meals align with my dietary preferences?',
+      'Is my calorie target sustainable for my stated goal?',
+      'Are my mode-specific targets evidence-based for my stats?',
+    ],
+  };
+
+  const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `balance-ai-review-${profile.name.replace(/\s+/g, '-')}-${today}.json`;
   a.click();
   URL.revokeObjectURL(url);
 }
@@ -78,9 +134,9 @@ function AddProfileModal({ onClose }: { onClose: () => void }) {
     onClose();
   }
 
-  return (
+  return createPortal(
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4"
+      className="fixed inset-0 z-[60] flex items-center justify-center bg-black/40 px-4"
       onClick={onClose}
     >
       <div
@@ -123,7 +179,8 @@ function AddProfileModal({ onClose }: { onClose: () => void }) {
           Create profile
         </button>
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }
 
@@ -143,7 +200,47 @@ export default function Profile() {
   const [planInfoMode, setPlanInfoMode] = useState<Profile['mode'] | null>(null);
   const [showScienceModal, setShowScienceModal] = useState(false);
 
+  // Draft states for number inputs — onChange updates draft only; onBlur commits to store
+  const [draftAge, setDraftAge] = useState(() => String(profile?.demographics.age ?? ''));
+  const [draftHeight, setDraftHeight] = useState(() => String(profile?.demographics.height_cm ?? ''));
+  const [draftWeight, setDraftWeight] = useState(() => String(profile?.demographics.weight_kg ?? ''));
+  const [draftGoalWeight, setDraftGoalWeight] = useState(() => String(profile?.demographics.goal_weight_kg ?? ''));
+
+  // Goal weight hint — shows briefly after any metric is committed
+  const [showGoalHint, setShowGoalHint] = useState(false);
+  const goalHintTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Sync drafts when the active profile switches
+  useEffect(() => {
+    if (!profile) return;
+    setDraftAge(String(profile.demographics.age));
+    setDraftHeight(String(profile.demographics.height_cm));
+    setDraftWeight(String(profile.demographics.weight_kg));
+    setDraftGoalWeight(String(profile.demographics.goal_weight_kg));
+  }, [profile?.id]);
+
   if (!profile) return null;
+
+  /** Parse, clamp, and save a numeric demographic field; also triggers the goal hint. */
+  function commitMetric(
+    field: 'age' | 'height_cm' | 'weight_kg' | 'goal_weight_kg',
+    raw: string,
+    min: number,
+    max: number,
+  ) {
+    if (!profile) return;
+    const num = parseFloat(raw);
+    if (isNaN(num) || num <= 0) return;
+    const clamped = Math.max(min, Math.min(max, num));
+    const final =
+      field === 'weight_kg' || field === 'goal_weight_kg'
+        ? Math.round(clamped * 10) / 10
+        : Math.round(clamped);
+    updateProfile(profile.id, { demographics: { ...profile.demographics, [field]: final } });
+    setShowGoalHint(true);
+    if (goalHintTimerRef.current) clearTimeout(goalHintTimerRef.current);
+    goalHintTimerRef.current = setTimeout(() => setShowGoalHint(false), 5000);
+  }
 
   const phaseInfo = profile.mode === 'pcos' ? getCurrentPhase(profile) : null;
   const computedTargets =
@@ -397,7 +494,7 @@ export default function Profile() {
             </div>
 
             <div className="flex items-center justify-between py-2 border-t border-sand">
-              <span className="text-sm text-plum-dark">Phase-aware suggestions</span>
+              <span className="text-sm text-plum-dark flex-1">Phase-aware suggestions</span>
               <Toggle
                 checked={!profile.pcos.cycle.currentPhaseOverride}
                 onChange={() =>
@@ -413,15 +510,17 @@ export default function Profile() {
                     },
                   })
                 }
+                testId="toggle-phase-aware"
               />
             </div>
             <div className="flex items-center justify-between py-2">
-              <span className="text-sm text-plum-dark">Seed cycling reminders</span>
+              <span className="text-sm text-plum-dark flex-1">Seed cycling reminders</span>
               <Toggle
                 checked={profile.pcos.seedCyclingEnabled}
                 onChange={() => updateProfile(profile.id, {
                   pcos: { ...profile.pcos!, seedCyclingEnabled: !profile.pcos!.seedCyclingEnabled }
                 })}
+                testId="toggle-seed-cycling"
               />
             </div>
           </Section>
@@ -510,11 +609,9 @@ export default function Profile() {
               <input
                 data-testid="metrics-age"
                 type="number" min="10" max="120"
-                value={profile.demographics.age}
-                onChange={(e) => {
-                  const v = Math.max(10, Math.min(120, Number(e.target.value)));
-                  if (!isNaN(v) && v > 0) updateProfile(profile.id, { demographics: { ...profile.demographics, age: v } });
-                }}
+                value={draftAge}
+                onChange={(e) => setDraftAge(e.target.value)}
+                onBlur={() => commitMetric('age', draftAge, 10, 120)}
                 className="w-20 px-2 py-1 rounded-lg border border-sand bg-cream-bg text-sm text-right text-plum-dark font-mono-num focus:outline-none focus:border-sage-primary"
               />
             </div>
@@ -525,11 +622,9 @@ export default function Profile() {
               <input
                 data-testid="metrics-height"
                 type="number" min="100" max="250"
-                value={profile.demographics.height_cm}
-                onChange={(e) => {
-                  const v = Math.max(100, Math.min(250, Number(e.target.value)));
-                  if (!isNaN(v) && v > 0) updateProfile(profile.id, { demographics: { ...profile.demographics, height_cm: v } });
-                }}
+                value={draftHeight}
+                onChange={(e) => setDraftHeight(e.target.value)}
+                onBlur={() => commitMetric('height_cm', draftHeight, 100, 250)}
                 className="w-20 px-2 py-1 rounded-lg border border-sand bg-cream-bg text-sm text-right text-plum-dark font-mono-num focus:outline-none focus:border-sage-primary"
               />
             </div>
@@ -540,28 +635,33 @@ export default function Profile() {
               <input
                 data-testid="metrics-weight"
                 type="number" min="20" max="300" step="0.1"
-                value={profile.demographics.weight_kg}
-                onChange={(e) => {
-                  const v = Math.max(20, Math.min(300, Number(e.target.value)));
-                  if (!isNaN(v) && v > 0) updateProfile(profile.id, { demographics: { ...profile.demographics, weight_kg: v } });
-                }}
+                value={draftWeight}
+                onChange={(e) => setDraftWeight(e.target.value)}
+                onBlur={() => commitMetric('weight_kg', draftWeight, 20, 300)}
                 className="w-20 px-2 py-1 rounded-lg border border-sand bg-cream-bg text-sm text-right text-plum-dark font-mono-num focus:outline-none focus:border-sage-primary"
               />
             </div>
 
             {/* Goal weight */}
-            <div className="flex items-center justify-between">
-              <span className="text-sm text-ink-60">Goal weight (kg)</span>
-              <input
-                data-testid="metrics-goal-weight"
-                type="number" min="20" max="300" step="0.1"
-                value={profile.demographics.goal_weight_kg}
-                onChange={(e) => {
-                  const v = Math.max(20, Math.min(300, Number(e.target.value)));
-                  if (!isNaN(v) && v > 0) updateProfile(profile.id, { demographics: { ...profile.demographics, goal_weight_kg: v } });
-                }}
-                className="w-20 px-2 py-1 rounded-lg border border-sand bg-cream-bg text-sm text-right text-plum-dark font-mono-num focus:outline-none focus:border-sage-primary"
-              />
+            <div>
+              <div className="flex items-center justify-between">
+                <span className={`text-sm transition-colors ${showGoalHint ? 'text-sage-deep' : 'text-ink-60'}`}>
+                  Goal weight (kg)
+                </span>
+                <input
+                  data-testid="metrics-goal-weight"
+                  type="number" min="20" max="300" step="0.1"
+                  value={draftGoalWeight}
+                  onChange={(e) => setDraftGoalWeight(e.target.value)}
+                  onBlur={() => commitMetric('goal_weight_kg', draftGoalWeight, 20, 300)}
+                  className="w-20 px-2 py-1 rounded-lg border border-sand bg-cream-bg text-sm text-right text-plum-dark font-mono-num focus:outline-none focus:border-sage-primary"
+                />
+              </div>
+              {showGoalHint && (
+                <p className="text-[11px] text-sage-deep mt-0.5" data-testid="goal-weight-hint">
+                  Tip: update your goal weight to align with your current plan.
+                </p>
+              )}
             </div>
 
             {/* Activity level */}
@@ -716,6 +816,14 @@ export default function Profile() {
               <Download size={15} className="text-ink-40" />
               Export food log to CSV
             </button>
+            <button
+              data-testid="export-ai-review"
+              onClick={() => exportAIReview(profile, computedTargets)}
+              className="w-full text-left text-sm text-ink-60 py-1 flex items-center gap-2"
+            >
+              <Download size={15} className="text-ink-40" />
+              Export for AI review (JSON)
+            </button>
             <label className="w-full text-left text-sm text-ink-60 py-1 flex items-center gap-2 cursor-pointer">
               <Upload size={15} className="text-ink-40" />
               Import from CSV
@@ -828,9 +936,9 @@ function PlanInfoModal({
     },
   }[mode];
 
-  return (
+  return createPortal(
     <div
-      className="fixed inset-0 z-50 flex items-end justify-center bg-black/40 px-4 pb-6"
+      className="fixed inset-0 z-[60] flex items-end justify-center bg-black/40 px-4 pb-6"
       onClick={onClose}
     >
       <div
@@ -858,7 +966,8 @@ function PlanInfoModal({
           Targets recalculate automatically when you update your body metrics.
         </p>
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }
 
@@ -913,9 +1022,9 @@ function ScienceModal({
     },
   ];
 
-  return (
+  return createPortal(
     <div
-      className="fixed inset-0 z-50 flex items-end justify-center bg-black/40 px-4 pb-6"
+      className="fixed inset-0 z-[60] flex items-end justify-center bg-black/40 px-4 pb-6"
       onClick={onClose}
       data-testid="science-modal"
     >
@@ -1087,7 +1196,8 @@ function ScienceModal({
           </div>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }
 
@@ -1102,11 +1212,11 @@ function Section({ title, children }: { title: string; children: React.ReactNode
   );
 }
 
-function Toggle({ checked, onChange }: { checked: boolean; onChange: () => void }) {
+function Toggle({ checked, onChange, testId = 'toggle' }: { checked: boolean; onChange: () => void; testId?: string }) {
   return (
     <button
       onClick={onChange}
-      data-testid="toggle"
+      data-testid={testId}
       aria-pressed={checked}
       className="min-h-[44px] min-w-[44px] flex items-center justify-center flex-shrink-0"
     >

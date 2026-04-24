@@ -1,4 +1,5 @@
 import { useEffect, useState, type ReactNode } from 'react';
+import { createPortal } from 'react-dom';
 
 interface BottomSheetProps {
   children: ReactNode;
@@ -36,22 +37,23 @@ export default function BottomSheet({ children, onClose }: BottomSheetProps) {
     };
   }, []);
 
-  return (
+  return createPortal(
     <>
       {/* Backdrop */}
       <div
-        className="fixed inset-0 z-50 bg-black/40"
+        className="fixed inset-0 z-[60] bg-black/40"
         onClick={onClose}
         data-testid="bottomsheet-backdrop"
       />
       {/* Sheet */}
       <div
-        className="fixed left-0 right-0 z-50 mx-auto max-w-md bg-cream-bg rounded-t-3xl"
+        className="fixed left-0 right-0 z-[60] mx-auto max-w-md bg-cream-bg rounded-t-3xl"
         style={{ bottom: kbOffset }}
         data-testid="bottomsheet"
       >
         {children}
       </div>
-    </>
+    </>,
+    document.body,
   );
 }
