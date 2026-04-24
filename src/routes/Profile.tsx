@@ -1,7 +1,8 @@
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ArrowLeft, ChevronRight, Plus, User } from 'lucide-react';
 import { useAppStore, selectActiveProfile } from '../store/appStore';
+import type { LoggedMeal, Profile as ProfileType } from '../store/appStore';
 import { computePCOSTargets, computeBulkTargets } from '../lib/targetComputation';
 import { getCurrentPhase } from '../lib/cyclePhase';
 
@@ -17,9 +18,16 @@ export default function Profile() {
   const profiles = useAppStore((s) => s.profiles);
   const setActiveProfile = useAppStore((s) => s.setActiveProfile);
   const updateProfile = useAppStore((s) => s.updateProfile);
+  const addProfile = useAppStore((s) => s.addProfile);
   const profile = useAppStore(selectActiveProfile);
 
   const [showProfileSwitcher, setShowProfileSwitcher] = useState(false);
+  const [showAddProfile, setShowAddProfile] = useState(false);
+  const [newProfileName, setNewProfileName] = useState('');
+  const [newProfileMode, setNewProfileMode] = useState<'pcos' | 'bulk' | 'maintain'>('maintain');
+  const [importError, setImportError] = useState<string | null>(null);
+  const [importSuccess, setImportSuccess] = useState(false);
+  const csvInputRef = useRef<HTMLInputElement>(null);
 
   if (!profile) return null;
 
@@ -80,9 +88,143 @@ export default function Profile() {
     });
   }
 
-  const totalLoggedToday = profile.foodLog.filter(
-    (m) => m.timestamp.startsWith(new Date().toISOString().split('T')[0])
-  ).length;
+  function exportToCSV() {
+    const headers = ['date', 'meal_type', 'name', 'calories', 'protein_g', 'carbs_g', 'fat_g', 'fiber_g', 'sugar_g', 'sodium_mg', 'score'];
+    const rows = profile.foodLog.map((m) => [
+      m.timestamp.split('T')[0],
+      m.meal_type,
+      `"${m.name.replace(/"/g, '""')}"`,
+      m.nutrition.calories,
+      m.nutrition.protein_g,
+      m.nutrition.carbs_g,
+      m.nutrition.fat_g,
+      m.nutrition.fiber_g,
+      m.nutrition.sugar_g,
+      m.nutrition.sodium_mg,
+      m.score.toFixed(1),
+    ]);
+    const csv = [headers.join(','), ...rows.map((r) => r.join(','))].join('\n');
+    const blob = new Blob([csv], { type: 'text/csv' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `balance-log-${new Date().toISOString().split('T')[0]}.csv`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  }
+
+  function handleImportCSV(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setImportError(null);
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      try {
+        const text = (ev.target?.result as string).trim();
+        const lines = text.split('\n').filter(Boolean);
+        if (lines.length < 2) throw new Error('File appears empty');
+        const headers = lines[0].split(',').map((h) => h.trim().toLowerCase());
+        const idx = (key: string) => headers.indexOf(key);
+        const nameI = idx('name');
+        const calI = idx('calories');
+        const protI = idx('protein_g');
+        const carbI = idx('carbs_g');
+        const fatI = idx('fat_g');
+        const fiberI = idx('fiber_g');
+        const sugarI = idx('sugar_g');
+        const sodI = idx('sodium_mg');
+        const typeI = idx('meal_type');
+        const dateI = idx('date');
+        if (nameI === -1 || calI === -1) throw new Error('Missing required columns: name, calories');
+        const newMeals: LoggedMeal[] = lines.slice(1).map((line) => {
+          const cols = line.split(',');
+          const name = (cols[nameI] ?? '').replace(/^"|"$/g, '').replace(/""/g, '"').trim();
+          const dateStr = cols[dateI]?.trim() ?? new Date().toISOString().split('T')[0];
+          return {
+            id: `import-${Date.now()}-${Math.random().toString(36).slice(2)}`,
+            timestamp: `${dateStr}T12:00:00.000Z`,
+            meal_type: (cols[typeI]?.trim() as LoggedMeal['meal_type']) || 'lunch',
+            name: name || 'Imported meal',
+            serving_g: 100,
+            nutrition: {
+              calories: parseFloat(cols[calI]) || 0,
+              protein_g: parseFloat(cols[protI]) || 0,
+              carbs_g: parseFloat(cols[carbI]) || 0,
+              fat_g: parseFloat(cols[fatI]) || 0,
+              fiber_g: parseFloat(cols[fiberI]) || 0,
+              sugar_g: parseFloat(cols[sugarI]) || 0,
+              saturated_fat_g: 0,
+              sodium_mg: parseFloat(cols[sodI]) || 0,
+            },
+            score: 5,
+          };
+        });
+        updateProfile(profile.id, { foodLog: [...profile.foodLog, ...newMeals] });
+        setImportSuccess(true);
+        setTimeout(() => setImportSuccess(false), 3000);
+      } catch (err) {
+        setImportError(err instanceof Error ? err.message : 'Failed to parse CSV');
+      }
+    };
+    reader.readAsText(file);
+    e.target.value = '';
+  }
+
+  function handleAddProfile() {
+    if (!newProfileName.trim()) return;
+    const id = `profile-${Date.now()}`;
+    const newProfile: ProfileType = {
+      id,
+      name: newProfileName.trim(),
+      mode: newProfileMode,
+      demographics: {
+        sex: newProfileMode === 'pcos' ? 'female' : 'male',
+        age: 25,
+        height_cm: 170,
+        weight_kg: 70,
+        goal_weight_kg: 70,
+        activity_level: 'moderate',
+      },
+      targets: {
+        calories: 2000,
+        protein_g: 120,
+        fat_g: 65,
+        carbs_g: 220,
+        fiber_g: 30,
+        omega3_g: 2,
+      },
+      foodLog: [],
+      mealPlan: {},
+      weightHistory: [{ date: new Date().toISOString().split('T')[0], kg: 70 }],
+      customRecipes: [],
+      preferences: { dietary_flags: [], dislikes: [] },
+      ...(newProfileMode === 'pcos' ? {
+        pcos: {
+          concerns: [],
+          cycle: { avgCycleLength: 28, avgPeriodLength: 5, history: [] },
+          symptomLog: [],
+          seedCyclingEnabled: false,
+        },
+      } : {}),
+      ...(newProfileMode === 'bulk' ? {
+        bulk: {
+          surplus_kcal: 300,
+          protein_g_per_kg: 2.0,
+          trainingSchedule: {
+            weekPattern: ['training', 'rest', 'training', 'rest', 'training', 'training', 'rest'],
+          },
+          supplements: [],
+        },
+      } : {}),
+    };
+    addProfile(newProfile);
+    setActiveProfile(id);
+    setNewProfileName('');
+    setShowAddProfile(false);
+    setShowProfileSwitcher(false);
+  }
 
   return (
     <div className="main-content min-h-screen bg-cream-bg">
@@ -136,10 +278,54 @@ export default function Profile() {
                 {p.id === activeId && <span className="text-xs text-sage-deep font-medium">(active)</span>}
               </button>
             ))}
-            <button className="w-full flex items-center gap-3 px-4 py-3 text-left text-sm text-coral-accent font-medium border-t border-sand">
+            <button
+              onClick={() => { setShowAddProfile(true); setShowProfileSwitcher(false); }}
+              className="w-full flex items-center gap-3 px-4 py-3 text-left text-sm text-coral-accent font-medium border-t border-sand"
+            >
               <Plus size={16} />
               Add profile
             </button>
+          </div>
+        )}
+
+        {/* Add profile form */}
+        {showAddProfile && (
+          <div className="bg-cream-card rounded-2xl border border-coral-accent/30 p-4 space-y-3">
+            <p className="text-xs font-bold text-ink-40 uppercase tracking-wide">New profile</p>
+            <input
+              value={newProfileName}
+              onChange={(e) => setNewProfileName(e.target.value)}
+              placeholder="Name"
+              className="w-full px-3 py-2 rounded-xl border border-sand text-sm bg-cream-bg focus:outline-none"
+            />
+            <div className="flex gap-2">
+              {(['pcos', 'bulk', 'maintain'] as const).map((m) => (
+                <button
+                  key={m}
+                  onClick={() => setNewProfileMode(m)}
+                  className={`flex-1 py-2 rounded-xl text-xs font-medium transition-all capitalize ${
+                    newProfileMode === m ? 'bg-sage-deep text-white' : 'bg-sand text-ink-60'
+                  }`}
+                >
+                  {m === 'pcos' ? 'PCOS' : m === 'bulk' ? 'Bulk' : 'Maintain'}
+                </button>
+              ))}
+            </div>
+            <div className="flex gap-2">
+              <button
+                onClick={() => { setShowAddProfile(false); setNewProfileName(''); }}
+                className="flex-1 py-2 rounded-xl border border-sand text-sm text-ink-60"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleAddProfile}
+                disabled={!newProfileName.trim()}
+                className="flex-1 py-2 rounded-xl bg-coral-accent text-white text-sm font-semibold disabled:opacity-40"
+              >
+                Create
+              </button>
+            </div>
           </div>
         )}
 
@@ -311,16 +497,23 @@ export default function Profile() {
         {/* Household */}
         <Section title="Household">
           {profiles.map((p) => (
-            <div key={p.id} className="flex items-center gap-3 py-1.5">
+            <button
+              key={p.id}
+              onClick={() => setActiveProfile(p.id)}
+              className="w-full flex items-center gap-3 py-1.5 text-left"
+            >
               <div className="w-8 h-8 rounded-full bg-sage-primary/20 flex items-center justify-center text-sm">👤</div>
               <div className="flex-1">
                 <p className="text-sm font-medium text-plum-dark">{p.name}</p>
                 <p className="text-xs text-ink-40 capitalize">{p.mode} Mode</p>
               </div>
               {p.id === activeId && <span className="text-xs text-sage-deep font-medium">(you)</span>}
-            </div>
+            </button>
           ))}
-          <button className="flex items-center gap-2 mt-2 text-sm text-coral-accent font-medium">
+          <button
+            onClick={() => setShowAddProfile(true)}
+            className="flex items-center gap-2 mt-2 text-sm text-coral-accent font-medium"
+          >
             <Plus size={15} /> Add profile
           </button>
         </Section>
@@ -328,8 +521,21 @@ export default function Profile() {
         {/* Data */}
         <Section title="Data">
           <div className="space-y-3">
-            <button className="w-full text-left text-sm text-ink-60 py-1">Export to CSV</button>
-            <button className="w-full text-left text-sm text-ink-60 py-1">Import from CSV</button>
+            <button onClick={exportToCSV} className="w-full text-left text-sm text-ink-60 py-1">
+              Export to CSV ({profile.foodLog.length} meals)
+            </button>
+            <label className="w-full text-left text-sm text-ink-60 py-1 cursor-pointer block">
+              Import from CSV
+              <input
+                ref={csvInputRef}
+                type="file"
+                accept=".csv"
+                className="hidden"
+                onChange={handleImportCSV}
+              />
+            </label>
+            {importError && <p className="text-xs text-terracotta">{importError}</p>}
+            {importSuccess && <p className="text-xs text-moss">Import successful!</p>}
             <button
               className="w-full text-left text-sm text-terracotta py-1"
               onClick={() => {

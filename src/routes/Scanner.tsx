@@ -36,6 +36,7 @@ export default function Scanner() {
 
   const [mode, setMode] = useState<ScanMode>('barcode');
   const [scanning, setScanning] = useState(false);
+  const [facingMode, setFacingMode] = useState<'environment' | 'user'>('environment');
   const [product, setProduct] = useState<ScannedProduct | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -49,21 +50,28 @@ export default function Scanner() {
 
   useEffect(() => {
     if (mode === 'barcode' && !product) {
-      startScanner();
+      startScanner(facingMode);
     }
     return () => {
       stopScanner();
     };
   }, [mode]);
 
-  async function startScanner() {
+  async function flipCamera() {
+    const next = facingMode === 'environment' ? 'user' : 'environment';
+    setFacingMode(next);
+    await stopScanner();
+    startScanner(next);
+  }
+
+  async function startScanner(facing: 'environment' | 'user' = 'environment') {
     try {
       setScanning(true);
       setError(null);
       const html5Qrcode = new Html5Qrcode('qr-reader');
       scannerRef.current = html5Qrcode;
       await html5Qrcode.start(
-        { facingMode: 'environment' },
+        { facingMode: facing },
         { fps: 10, qrbox: { width: 250, height: 120 } },
         async (barcode) => {
           await stopScanner();
@@ -174,7 +182,7 @@ export default function Scanner() {
     return (
       <div className="min-h-screen bg-cream-bg overflow-y-auto pb-8">
         <div className="sticky top-0 z-10 bg-cream-bg px-4 py-3 flex items-center gap-3 border-b border-sand">
-          <button onClick={() => { setProduct(null); startScanner(); }} className="p-2 rounded-full hover:bg-sand">
+          <button onClick={() => { setProduct(null); startScanner(facingMode); }} className="p-2 rounded-full hover:bg-sand">
             <X size={20} className="text-plum-dark" />
           </button>
           <h1 className="font-semibold text-plum-dark">Scan result</h1>
@@ -281,7 +289,10 @@ export default function Scanner() {
           <button className="w-10 h-10 rounded-full bg-white/10 flex items-center justify-center">
             <Zap size={18} className="text-white" />
           </button>
-          <button className="w-10 h-10 rounded-full bg-white/10 flex items-center justify-center">
+          <button
+            onClick={flipCamera}
+            className="w-10 h-10 rounded-full bg-white/10 flex items-center justify-center active:scale-95 transition-transform"
+          >
             <FlipHorizontal size={18} className="text-white" />
           </button>
         </div>
