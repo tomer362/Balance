@@ -120,7 +120,7 @@ export default function Groceries() {
   }
 
   function applySwap(mealId: string) {
-    if (!swapTarget) return;
+    if (!swapTarget || !profile) return;
     updateProfile(profile.id, {
       mealPlan: {
         ...profile.mealPlan,

@@ -61,7 +61,8 @@ export default function Dashboard() {
     : (isTraining ? (targets.calories_training_day ?? targets.calories) : (targets.calories_rest_day ?? targets.calories));
 
   return (
-    <div className="main-content overflow-y-auto min-h-screen">
+    <>
+      <div className="main-content overflow-y-auto min-h-screen">
       {/* PCOS Phase strip */}
       {profile.mode === 'pcos' && phaseInfo && (
         <div
@@ -214,18 +215,19 @@ export default function Dashboard() {
       )}
 
       <div className="h-4" />
-    </div>
+      </div>
 
-    {/* Edit meal bottom-sheet */}
-    {editingMeal && (
-      <EditMealSheet
-        meal={editingMeal}
-        profileId={profile.id}
-        mode={profile.mode}
-        phase={phaseInfo?.phase}
-        onClose={() => setEditingMeal(null)}
-      />
-    )}
+      {/* Edit meal bottom-sheet */}
+      {editingMeal && (
+        <EditMealSheet
+          meal={editingMeal}
+          profileId={profile.id}
+          mode={profile.mode}
+          phase={phaseInfo?.phase}
+          onClose={() => setEditingMeal(null)}
+        />
+      )}
+    </>
   );
 }
 

@@ -330,15 +330,17 @@ export default function Profile() {
             <div className="flex items-center justify-between py-2 border-t border-sand">
               <span className="text-sm text-plum-dark">Phase-aware suggestions</span>
               <Toggle
-                checked={!profile.pcos.currentPhaseOverride ? true : false}
+                checked={!profile.pcos.cycle.currentPhaseOverride}
                 onChange={() =>
                   updateProfile(profile.id, {
                     pcos: {
                       ...profile.pcos!,
-                      // toggling: clear override to re-enable phase awareness, or set a fixed override to disable
-                      currentPhaseOverride: profile.pcos!.currentPhaseOverride
-                        ? undefined
-                        : phaseInfo?.phase,
+                      cycle: {
+                        ...profile.pcos!.cycle,
+                        currentPhaseOverride: profile.pcos!.cycle.currentPhaseOverride
+                          ? undefined
+                          : phaseInfo?.phase,
+                      },
                     },
                   })
                 }
