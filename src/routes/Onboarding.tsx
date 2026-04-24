@@ -172,11 +172,13 @@ export default function Onboarding() {
             value={name}
             onChange={(e) => setName(e.target.value)}
             placeholder="Your name"
+            data-testid="onboarding-name-input"
             className="w-full px-4 py-3.5 rounded-2xl border border-sand bg-cream-card text-plum-dark placeholder-ink-40 focus:outline-none focus:border-sage-primary"
           />
 
           <button
             onClick={() => setStep(2)}
+            data-testid="onboarding-step1-continue"
             className="mt-auto mb-4 w-full bg-sage-deep text-white py-4 rounded-2xl font-semibold flex items-center justify-center gap-2"
           >
             Continue <ArrowRight size={18} />
@@ -197,6 +199,7 @@ export default function Onboarding() {
                 <button
                   key={card.mode}
                   onClick={() => setSelectedMode(card.mode)}
+                  data-testid={`mode-card-${card.mode}`}
                   className={`w-full rounded-2xl border-2 p-4 text-left transition-all ${
                     active ? 'bg-cream-card shadow-md' : 'bg-cream-card/60 border-sand'
                   }`}
@@ -230,6 +233,7 @@ export default function Onboarding() {
           <button
             disabled={!selectedMode}
             onClick={() => setStep(3)}
+            data-testid="onboarding-step2-continue"
             className={`mt-4 mb-4 w-full py-4 rounded-2xl font-semibold flex items-center justify-center gap-2 transition-opacity ${
               selectedMode ? 'bg-sage-deep text-white' : 'bg-sand text-ink-40 opacity-50'
             }`}
@@ -303,6 +307,7 @@ export default function Onboarding() {
 
           <button
             onClick={finish}
+            data-testid="onboarding-finish"
             className="mb-4 w-full bg-sage-deep text-white py-4 rounded-2xl font-semibold flex items-center justify-center gap-2"
           >
             Start using Balance <ArrowRight size={18} />
