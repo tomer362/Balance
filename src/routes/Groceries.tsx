@@ -1,11 +1,13 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, ShoppingCart, Check, Share2, Edit3, ChevronLeft, ChevronRight } from 'lucide-react';
+import { ArrowLeft, ShoppingCart, Check, Share2, ChevronLeft, ChevronRight, X } from 'lucide-react';
 import { useAppStore, selectActiveProfile } from '../store/appStore';
 import { mealDatabase } from '../data/mealDatabase';
+import { getSuggestions } from '../lib/suggestionEngine';
 import ScoreBadge from '../components/ScoreBadge';
 
 type Tab = 'plan' | 'list';
+type SlotKey = 'breakfast' | 'lunch' | 'dinner';
 
 const DAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 
@@ -64,9 +66,16 @@ const CATEGORY_META = {
   pantry: { label: '🥜 Pantry', order: 4 },
 };
 
+const SLOT_LABELS: Record<SlotKey, string> = {
+  breakfast: '🌅 Breakfast',
+  lunch: '🌞 Lunch',
+  dinner: '🌙 Dinner',
+};
+
 export default function Groceries() {
   const navigate = useNavigate();
   const profile = useAppStore(selectActiveProfile);
+  const updateProfile = useAppStore((s) => s.updateProfile);
 
   const [tab, setTab] = useState<Tab>('plan');
   const [weekOffset, setWeekOffset] = useState(0);
@@ -75,6 +84,7 @@ export default function Groceries() {
     return d === 0 ? 6 : d - 1;
   });
   const [groceries, setGroceries] = useState<GroceryItem[]>(SAMPLE_GROCERY_LIST);
+  const [swapTarget, setSwapTarget] = useState<{ dateKey: string; slot: SlotKey } | null>(null);
 
   if (!profile) return null;
 
@@ -99,13 +109,31 @@ export default function Groceries() {
     return mealDatabase.find((m) => m.id === id) ?? null;
   }
 
-  const breakfastMeal = getMealById(dayPlan?.breakfast);
-  const lunchMeal = getMealById(dayPlan?.lunch);
-  const dinnerMeal = getMealById(dayPlan?.dinner);
+  const SLOTS: { label: string; slot: SlotKey; meal: ReturnType<typeof getMealById> }[] = [
+    { label: SLOT_LABELS.breakfast, slot: 'breakfast', meal: getMealById(dayPlan?.breakfast) },
+    { label: SLOT_LABELS.lunch,     slot: 'lunch',     meal: getMealById(dayPlan?.lunch) },
+    { label: SLOT_LABELS.dinner,    slot: 'dinner',    meal: getMealById(dayPlan?.dinner) },
+  ];
 
   function toggleGrocery(id: string) {
     setGroceries((prev) => prev.map((g) => g.id === id ? { ...g, checked: !g.checked } : g));
   }
+
+  function applySwap(mealId: string) {
+    if (!swapTarget) return;
+    updateProfile(profile.id, {
+      mealPlan: {
+        ...profile.mealPlan,
+        [swapTarget.dateKey]: {
+          ...profile.mealPlan[swapTarget.dateKey],
+          [swapTarget.slot]: mealId,
+        },
+      },
+    });
+    setSwapTarget(null);
+  }
+
+  const swapSuggestions = swapTarget ? getSuggestions(profile, 3) : [];
 
   const checkedCount = groceries.filter((g) => g.checked).length;
   const categories = Object.entries(CATEGORY_META).sort((a, b) => a[1].order - b[1].order);
@@ -174,12 +202,8 @@ export default function Groceries() {
               {selectedDate.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}
             </p>
 
-            {[
-              { label: '🌅 Breakfast', meal: breakfastMeal },
-              { label: '🌞 Lunch', meal: lunchMeal },
-              { label: '🌙 Dinner', meal: dinnerMeal },
-            ].map(({ label, meal }) => (
-              <div key={label} className="bg-cream-card rounded-2xl border border-sand p-4">
+            {SLOTS.map(({ label, slot, meal }) => (
+              <div key={slot} className="bg-cream-card rounded-2xl border border-sand p-4">
                 <p className="text-xs font-semibold text-ink-40 uppercase tracking-wide mb-2">{label}</p>
                 {meal ? (
                   <div>
@@ -189,12 +213,22 @@ export default function Groceries() {
                     </div>
                     <p className="text-xs text-ink-40 mt-1">{meal.nutrition.calories} kcal · {meal.nutrition.protein_g}g P</p>
                     <div className="flex gap-2 mt-2">
-                      <button className="text-xs text-ink-60 border border-sand rounded-lg px-2.5 py-1">Swap</button>
+                      <button
+                        onClick={() => setSwapTarget({ dateKey: selectedKey, slot })}
+                        className="text-xs text-ink-60 border border-sand rounded-lg px-2.5 py-1 hover:bg-sand transition-colors"
+                      >
+                        Swap
+                      </button>
                       <button className="text-xs text-moss bg-moss/10 rounded-lg px-2.5 py-1 font-medium">Done ✓</button>
                     </div>
                   </div>
                 ) : (
-                  <button className="text-xs text-coral-accent font-medium">+ Add meal</button>
+                  <button
+                    onClick={() => navigate(`/log?mealType=${slot}`)}
+                    className="text-xs text-coral-accent font-medium"
+                  >
+                    + Add meal
+                  </button>
                 )}
               </div>
             ))}
@@ -221,14 +255,9 @@ export default function Groceries() {
             <p className="text-sm text-ink-60">
               <span className="font-semibold text-plum-dark">{checkedCount}</span> / {groceries.length} checked
             </p>
-            <div className="flex gap-2">
-              <button className="p-2 rounded-xl bg-sand text-ink-60">
-                <Share2 size={15} />
-              </button>
-              <button className="p-2 rounded-xl bg-sand text-ink-60">
-                <Edit3 size={15} />
-              </button>
-            </div>
+            <button className="p-2 rounded-xl bg-sand text-ink-60">
+              <Share2 size={15} />
+            </button>
           </div>
 
           {checkedCount > 0 && (
@@ -270,6 +299,55 @@ export default function Groceries() {
                 </div>
               );
             })}
+          </div>
+        </div>
+      )}
+
+      {/* Swap bottom-sheet */}
+      {swapTarget && (
+        <div className="fixed inset-0 z-50 flex flex-col justify-end">
+          {/* Backdrop */}
+          <div className="absolute inset-0 bg-black/40" onClick={() => setSwapTarget(null)} />
+
+          <div className="relative bg-cream-bg rounded-t-3xl px-4 pt-4 pb-safe-or-6 z-10">
+            {/* Handle */}
+            <div className="w-10 h-1 bg-sand rounded-full mx-auto mb-4" />
+
+            <div className="flex items-center justify-between mb-4">
+              <div>
+                <h2 className="font-semibold text-plum-dark">Swap {SLOT_LABELS[swapTarget.slot]}</h2>
+                <p className="text-xs text-ink-60 mt-0.5">Top suggestions for you</p>
+              </div>
+              <button onClick={() => setSwapTarget(null)} className="p-2 rounded-full hover:bg-sand">
+                <X size={18} className="text-ink-60" />
+              </button>
+            </div>
+
+            <div className="space-y-2">
+              {swapSuggestions.map((suggestion) => (
+                <button
+                  key={suggestion.id}
+                  onClick={() => applySwap(suggestion.id)}
+                  className="w-full flex items-center gap-3 bg-cream-card rounded-2xl border border-sand px-4 py-3 text-left hover:border-sage-primary transition-colors"
+                >
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium text-plum-dark truncate">{suggestion.name}</p>
+                    <p className="text-xs text-ink-40 mt-0.5">
+                      {suggestion.nutrition.calories} kcal · {suggestion.nutrition.protein_g}g P
+                    </p>
+                    {suggestion.closedGaps.length > 0 && (
+                      <p className="text-xs text-sage-primary mt-0.5">
+                        Covers: {suggestion.closedGaps.slice(0, 2).join(', ')}
+                      </p>
+                    )}
+                  </div>
+                  <ScoreBadge
+                    score={profile.mode === 'pcos' ? suggestion.pcos_score : (suggestion.bulk_score ?? suggestion.pcos_score)}
+                    size="sm"
+                  />
+                </button>
+              ))}
+            </div>
           </div>
         </div>
       )}

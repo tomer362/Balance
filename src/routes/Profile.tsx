@@ -1,15 +1,127 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, ChevronRight, Plus, User } from 'lucide-react';
+import { ArrowLeft, ChevronRight, Plus, User, Trash2, X, Download, Upload } from 'lucide-react';
 import { useAppStore, selectActiveProfile } from '../store/appStore';
+import type { Profile } from '../store/appStore';
 import { computePCOSTargets, computeBulkTargets } from '../lib/targetComputation';
 import { getCurrentPhase } from '../lib/cyclePhase';
 
 const CONCERNS = ['Insulin resistance', 'Weight', 'Hirsutism', 'Acne', 'Fertility', 'Irregular cycles'];
 const DIETARY_FLAGS = ['Vegetarian', 'Vegan', 'Gluten-free', 'Dairy-limited', 'Nut-free'];
 const SUPPLEMENTS = ['Creatine 5g daily', 'Whey protein', 'Fish oil', 'Vitamin D', 'Inositol'];
-
 const DAYS_SHORT = ['M', 'T', 'W', 'T', 'F', 'S', 'S'];
+
+// ─── CSV helpers ──────────────────────────────────────────────────────────────
+
+function exportCSV(profile: Profile): void {
+  const headers = [
+    'date', 'meal_name', 'meal_type', 'serving_g', 'calories',
+    'protein_g', 'carbs_g', 'fat_g', 'fiber_g', 'score',
+  ];
+  const rows = profile.foodLog.map((m) => [
+    m.timestamp.split('T')[0],
+    `"${m.name.replace(/"/g, '""')}"`,
+    m.meal_type,
+    m.serving_g,
+    m.nutrition.calories,
+    m.nutrition.protein_g,
+    m.nutrition.carbs_g,
+    m.nutrition.fat_g,
+    m.nutrition.fiber_g,
+    m.score.toFixed(1),
+  ]);
+
+  const csv = [headers.join(','), ...rows.map((r) => r.join(','))].join('\n');
+  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `balance-${profile.name.replace(/\s/g, '-')}-${new Date().toISOString().split('T')[0]}.csv`;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+// ─── Add-profile mini modal ───────────────────────────────────────────────────
+
+function AddProfileModal({ onClose }: { onClose: () => void }) {
+  const addProfile = useAppStore((s) => s.addProfile);
+  const setActiveProfile = useAppStore((s) => s.setActiveProfile);
+
+  const [name, setName] = useState('');
+  const [mode, setMode] = useState<Profile['mode']>('maintain');
+
+  function create() {
+    const id = `user-${Date.now()}`;
+    const profile: Profile = {
+      id,
+      name: name.trim() || 'New Profile',
+      mode,
+      demographics: { sex: 'other', age: 25, height_cm: 170, weight_kg: 70, goal_weight_kg: 70, activity_level: 'moderate' },
+      targets: { calories: 2000, protein_g: 100, fat_g: 65, carbs_g: 250, fiber_g: 30, omega3_g: 2.0, meals_per_day_target: 4 },
+      foodLog: [],
+      mealPlan: {},
+      weightHistory: [{ date: new Date().toISOString().split('T')[0], kg: 70 }],
+      customRecipes: [],
+      preferences: { dietary_flags: [], dislikes: [] },
+      ...(mode === 'pcos'
+        ? { pcos: { concerns: [], cycle: { avgCycleLength: 28, avgPeriodLength: 5, history: [] }, symptomLog: [], seedCyclingEnabled: false } }
+        : mode === 'bulk'
+        ? { bulk: { surplus_kcal: 300, protein_g_per_kg: 2.0, trainingSchedule: { weekPattern: ['training', 'rest', 'training', 'rest', 'training', 'training', 'rest'] }, supplements: [] } }
+        : {}),
+    };
+    addProfile(profile);
+    setActiveProfile(id);
+    onClose();
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/40" onClick={onClose}>
+      <div
+        className="w-full max-w-md bg-cream-bg rounded-t-3xl p-5 pb-safe space-y-4"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="flex items-center justify-between">
+          <h3 className="font-semibold text-plum-dark">New profile</h3>
+          <button onClick={onClose} className="tap-target flex items-center justify-center">
+            <X size={20} className="text-ink-40" />
+          </button>
+        </div>
+
+        <input
+          type="text"
+          autoFocus
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          placeholder="Name (e.g. Rachel)"
+          className="w-full px-4 py-3 rounded-xl border border-sand bg-cream-card text-plum-dark placeholder-ink-40 focus:outline-none focus:border-sage-primary"
+        />
+
+        <div className="flex gap-2">
+          {(['pcos', 'bulk', 'maintain'] as const).map((m) => (
+            <button
+              key={m}
+              onClick={() => setMode(m)}
+              className={`flex-1 py-2.5 rounded-xl text-xs font-semibold capitalize transition-all border ${
+                mode === m ? 'bg-sage-deep text-white border-sage-deep' : 'bg-cream-card border-sand text-ink-60'
+              }`}
+            >
+              {m === 'pcos' ? 'PCOS' : m === 'bulk' ? 'Bulk' : 'Maintain'}
+            </button>
+          ))}
+        </div>
+
+        <button
+          onClick={create}
+          className="w-full bg-sage-deep text-white py-3.5 rounded-2xl font-semibold"
+        >
+          Create profile
+        </button>
+      </div>
+    </div>
+  );
+}
+
+// ─── Main ─────────────────────────────────────────────────────────────────────
 
 export default function Profile() {
   const navigate = useNavigate();
@@ -17,14 +129,21 @@ export default function Profile() {
   const profiles = useAppStore((s) => s.profiles);
   const setActiveProfile = useAppStore((s) => s.setActiveProfile);
   const updateProfile = useAppStore((s) => s.updateProfile);
+  const deleteProfile = useAppStore((s) => s.deleteProfile);
   const profile = useAppStore(selectActiveProfile);
 
   const [showProfileSwitcher, setShowProfileSwitcher] = useState(false);
+  const [showAddModal, setShowAddModal] = useState(false);
 
   if (!profile) return null;
 
   const phaseInfo = profile.mode === 'pcos' ? getCurrentPhase(profile) : null;
-  const computedTargets = profile.mode === 'pcos' ? computePCOSTargets(profile) : computeBulkTargets(profile);
+  const computedTargets =
+    profile.mode === 'pcos'
+      ? computePCOSTargets(profile)
+      : profile.mode === 'bulk'
+      ? computeBulkTargets(profile)
+      : profile.targets;
 
   function toggleConcern(concern: string) {
     if (!profile?.pcos) return;
@@ -68,7 +187,7 @@ export default function Profile() {
 
   function toggleSupplement(supp: string) {
     if (!profile?.bulk) return;
-    const key = supp.toLowerCase().replace(/\s/g, '-').replace(/\d/g, '').trim();
+    const key = supp.toLowerCase().split(' ').slice(0, 1).join('');
     const current = profile.bulk.supplements;
     updateProfile(profile.id, {
       bulk: {
@@ -80,15 +199,21 @@ export default function Profile() {
     });
   }
 
-  const totalLoggedToday = profile.foodLog.filter(
-    (m) => m.timestamp.startsWith(new Date().toISOString().split('T')[0])
-  ).length;
+  function handleDeleteProfile(id: string) {
+    if (profiles.length <= 1) {
+      alert('You need at least one profile.');
+      return;
+    }
+    if (confirm(`Delete profile "${profiles.find((p) => p.id === id)?.name}"? This cannot be undone.`)) {
+      deleteProfile(id);
+    }
+  }
 
   return (
     <div className="main-content min-h-screen bg-cream-bg">
       {/* Header */}
       <div className="px-4 pt-4 pb-3 flex items-center gap-3">
-        <button onClick={() => navigate(-1)} className="p-2 rounded-full hover:bg-sand">
+        <button onClick={() => navigate(-1)} className="tap-target flex items-center justify-center p-2 rounded-full hover:bg-sand">
           <ArrowLeft size={20} className="text-plum-dark" />
         </button>
         <h1 className="font-semibold text-plum-dark">Profile</h1>
@@ -119,24 +244,39 @@ export default function Profile() {
         {showProfileSwitcher && (
           <div className="bg-cream-card rounded-2xl border border-sand overflow-hidden">
             {profiles.map((p) => (
-              <button
+              <div
                 key={p.id}
-                onClick={() => { setActiveProfile(p.id); setShowProfileSwitcher(false); }}
-                className={`w-full flex items-center gap-3 px-4 py-3 text-left transition-colors ${
+                className={`flex items-center gap-3 px-4 py-3 transition-colors ${
                   p.id === activeId ? 'bg-sage-primary/10' : 'hover:bg-sand/50'
                 }`}
               >
-                <div className="w-8 h-8 rounded-full bg-sage-primary/20 flex items-center justify-center text-sm flex-shrink-0">
-                  {p.avatar ?? '👤'}
-                </div>
-                <div className="flex-1">
-                  <p className="text-sm font-medium text-plum-dark">{p.name}</p>
-                  <p className="text-xs text-ink-40 capitalize">{p.mode} Mode</p>
-                </div>
-                {p.id === activeId && <span className="text-xs text-sage-deep font-medium">(active)</span>}
-              </button>
+                <button
+                  onClick={() => { setActiveProfile(p.id); setShowProfileSwitcher(false); }}
+                  className="flex items-center gap-3 flex-1 text-left"
+                >
+                  <div className="w-8 h-8 rounded-full bg-sage-primary/20 flex items-center justify-center text-sm flex-shrink-0">
+                    {p.avatar ?? '👤'}
+                  </div>
+                  <div className="flex-1">
+                    <p className="text-sm font-medium text-plum-dark">{p.name}</p>
+                    <p className="text-xs text-ink-40 capitalize">{p.mode} Mode</p>
+                  </div>
+                  {p.id === activeId && <span className="text-xs text-sage-deep font-medium">(active)</span>}
+                </button>
+                {profiles.length > 1 && (
+                  <button
+                    onClick={() => handleDeleteProfile(p.id)}
+                    className="tap-target flex items-center justify-center text-ink-40 hover:text-terracotta transition-colors"
+                  >
+                    <Trash2 size={15} />
+                  </button>
+                )}
+              </div>
             ))}
-            <button className="w-full flex items-center gap-3 px-4 py-3 text-left text-sm text-coral-accent font-medium border-t border-sand">
+            <button
+              onClick={() => { setShowProfileSwitcher(false); setShowAddModal(true); }}
+              className="w-full flex items-center gap-3 px-4 py-3 text-left text-sm text-coral-accent font-medium border-t border-sand"
+            >
               <Plus size={16} />
               Add profile
             </button>
@@ -190,8 +330,18 @@ export default function Profile() {
             <div className="flex items-center justify-between py-2 border-t border-sand">
               <span className="text-sm text-plum-dark">Phase-aware suggestions</span>
               <Toggle
-                checked={true}
-                onChange={() => {}}
+                checked={!profile.pcos.currentPhaseOverride ? true : false}
+                onChange={() =>
+                  updateProfile(profile.id, {
+                    pcos: {
+                      ...profile.pcos!,
+                      // toggling: clear override to re-enable phase awareness, or set a fixed override to disable
+                      currentPhaseOverride: profile.pcos!.currentPhaseOverride
+                        ? undefined
+                        : phaseInfo?.phase,
+                    },
+                  })
+                }
               />
             </div>
             <div className="flex items-center justify-between py-2">
@@ -274,10 +424,10 @@ export default function Profile() {
                 { label: 'Fiber', val: `${computedTargets.fiber_g}g` },
                 { label: 'Omega-3', val: `${computedTargets.omega3_g}g` },
                 { label: 'Max GL/day', val: String(computedTargets.max_glycemic_load) },
-              ] : [
-                { label: 'Training day calories', val: `${computedTargets.calories_training_day} kcal` },
-                { label: 'Rest day calories', val: `${computedTargets.calories_rest_day} kcal` },
-              ]),
+              ] : profile.mode === 'bulk' ? [
+                { label: 'Training day cal', val: `${computedTargets.calories_training_day} kcal` },
+                { label: 'Rest day cal', val: `${computedTargets.calories_rest_day} kcal` },
+              ] : []),
             ].map(({ label, val }) => (
               <div key={label} className="flex items-center justify-between">
                 <span className="text-sm text-ink-60">{label}</span>
@@ -320,7 +470,10 @@ export default function Profile() {
               {p.id === activeId && <span className="text-xs text-sage-deep font-medium">(you)</span>}
             </div>
           ))}
-          <button className="flex items-center gap-2 mt-2 text-sm text-coral-accent font-medium">
+          <button
+            onClick={() => setShowAddModal(true)}
+            className="flex items-center gap-2 mt-2 text-sm text-coral-accent font-medium"
+          >
             <Plus size={15} /> Add profile
           </button>
         </Section>
@@ -328,12 +481,32 @@ export default function Profile() {
         {/* Data */}
         <Section title="Data">
           <div className="space-y-3">
-            <button className="w-full text-left text-sm text-ink-60 py-1">Export to CSV</button>
-            <button className="w-full text-left text-sm text-ink-60 py-1">Import from CSV</button>
+            <button
+              onClick={() => exportCSV(profile)}
+              className="w-full text-left text-sm text-ink-60 py-1 flex items-center gap-2"
+            >
+              <Download size={15} className="text-ink-40" />
+              Export food log to CSV
+            </button>
+            <label className="w-full text-left text-sm text-ink-60 py-1 flex items-center gap-2 cursor-pointer">
+              <Upload size={15} className="text-ink-40" />
+              Import from CSV
+              <input
+                type="file"
+                accept=".csv"
+                className="hidden"
+                onChange={(e) => {
+                  const file = e.target.files?.[0];
+                  if (!file) return;
+                  alert(`Import from "${file.name}" — parsing not yet implemented. Export your data first and re-import is coming soon.`);
+                  e.target.value = '';
+                }}
+              />
+            </label>
             <button
               className="w-full text-left text-sm text-terracotta py-1"
               onClick={() => {
-                if (confirm('Reset all your data? This cannot be undone.')) {
+                if (confirm('Reset all food log and weight history for this profile? This cannot be undone.')) {
                   updateProfile(profile.id, { foodLog: [], weightHistory: [], mealPlan: {} });
                 }
               }}
@@ -348,6 +521,9 @@ export default function Profile() {
           Balance v1.0.0 · Goal-aware nutrition tracking
         </div>
       </div>
+
+      {/* Add profile modal */}
+      {showAddModal && <AddProfileModal onClose={() => setShowAddModal(false)} />}
     </div>
   );
 }
@@ -365,7 +541,7 @@ function Toggle({ checked, onChange }: { checked: boolean; onChange: () => void 
   return (
     <button
       onClick={onChange}
-      className={`w-10 h-6 rounded-full transition-colors relative ${checked ? 'bg-sage-deep' : 'bg-sand'}`}
+      className={`w-10 h-6 rounded-full transition-colors relative flex-shrink-0 ${checked ? 'bg-sage-deep' : 'bg-sand'}`}
     >
       <span
         className={`absolute top-0.5 w-5 h-5 rounded-full bg-white shadow-sm transition-transform ${

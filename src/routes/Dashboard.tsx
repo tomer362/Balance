@@ -1,12 +1,15 @@
+import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Settings, ChevronRight } from 'lucide-react';
+import { Settings, ChevronRight, X } from 'lucide-react';
 import { useAppStore, selectActiveProfile, selectTodayMeals } from '../store/appStore';
+import type { LoggedMeal, Phase } from '../store/appStore';
 import BalanceWheel from '../components/BalanceWheel';
 import MealCard from '../components/MealCard';
 import ScoreBadge from '../components/ScoreBadge';
 import { sumNutrients } from '../lib/gapAnalysis';
 import { getSuggestions } from '../lib/suggestionEngine';
 import { getCurrentPhase, getPhaseName, getPhaseColor } from '../lib/cyclePhase';
+import { scoreFood } from '../lib/scoring';
 
 function greetingByHour(): string {
   const h = new Date().getHours();
@@ -38,6 +41,9 @@ export default function Dashboard() {
   const profile = useAppStore(selectActiveProfile);
   const todayMeals = useAppStore(selectTodayMeals);
   const removeMeal = useAppStore((s) => s.removeMeal);
+  const updateMeal = useAppStore((s) => s.updateMeal);
+
+  const [editingMeal, setEditingMeal] = useState<LoggedMeal | null>(null);
 
   if (!profile) return null;
 
@@ -146,6 +152,7 @@ export default function Dashboard() {
                   key={meal.id}
                   meal={meal}
                   onDelete={() => removeMeal(profile.id, meal.id)}
+                  onEdit={() => setEditingMeal(meal)}
                 />
               ))}
           </div>
@@ -207,6 +214,142 @@ export default function Dashboard() {
       )}
 
       <div className="h-4" />
+    </div>
+
+    {/* Edit meal bottom-sheet */}
+    {editingMeal && (
+      <EditMealSheet
+        meal={editingMeal}
+        profileId={profile.id}
+        mode={profile.mode}
+        phase={phaseInfo?.phase}
+        onClose={() => setEditingMeal(null)}
+      />
+    )}
+  );
+}
+
+// ── Edit meal sheet ──────────────────────────────────────────────────────────
+
+const MEAL_TYPES: LoggedMeal['meal_type'][] = [
+  'breakfast', 'lunch', 'dinner', 'snack', 'pre_workout', 'post_workout',
+];
+
+function EditMealSheet({
+  meal,
+  profileId,
+  mode,
+  phase,
+  onClose,
+}: {
+  meal: LoggedMeal;
+  profileId: string;
+  mode: 'pcos' | 'bulk' | 'maintain';
+  phase?: Phase;
+  onClose: () => void;
+}) {
+  const updateMeal = useAppStore((s) => s.updateMeal);
+
+  const [name, setName] = useState(meal.name);
+  const [mealType, setMealType] = useState<LoggedMeal['meal_type']>(meal.meal_type);
+  const [servingText, setServingText] = useState(String(meal.serving_g));
+
+  const newServing = Math.max(1, Number(servingText) || meal.serving_g);
+  const scale = newServing / meal.serving_g;
+
+  function save() {
+    const scaledNutrition = {
+      calories: Math.round(meal.nutrition.calories * scale),
+      protein_g: Math.round(meal.nutrition.protein_g * scale * 10) / 10,
+      carbs_g: Math.round(meal.nutrition.carbs_g * scale * 10) / 10,
+      fiber_g: Math.round(meal.nutrition.fiber_g * scale * 10) / 10,
+      sugar_g: Math.round(meal.nutrition.sugar_g * scale * 10) / 10,
+      fat_g: Math.round(meal.nutrition.fat_g * scale * 10) / 10,
+      saturated_fat_g: Math.round(meal.nutrition.saturated_fat_g * scale * 10) / 10,
+      sodium_mg: Math.round(meal.nutrition.sodium_mg * scale),
+      omega3_g: meal.nutrition.omega3_g !== undefined
+        ? Math.round(meal.nutrition.omega3_g * scale * 100) / 100
+        : undefined,
+    };
+    const newScore = scoreFood(scaledNutrition, newServing, mode, phase);
+    updateMeal(profileId, meal.id, {
+      name: name.trim() || meal.name,
+      meal_type: mealType,
+      serving_g: newServing,
+      nutrition: scaledNutrition,
+      score: newScore,
+    });
+    onClose();
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/40" onClick={onClose}>
+      <div
+        className="w-full max-w-md bg-cream-bg rounded-t-3xl p-5 pb-safe space-y-4"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="flex items-center justify-between">
+          <h3 className="font-semibold text-plum-dark">Edit meal</h3>
+          <button onClick={onClose} className="tap-target flex items-center justify-center">
+            <X size={20} className="text-ink-40" />
+          </button>
+        </div>
+
+        {/* Name */}
+        <div>
+          <label className="text-xs text-ink-40 block mb-1.5">Name</label>
+          <input
+            type="text"
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            className="w-full px-4 py-3 rounded-xl border border-sand bg-cream-card text-plum-dark focus:outline-none focus:border-sage-primary"
+          />
+        </div>
+
+        {/* Meal type */}
+        <div>
+          <label className="text-xs text-ink-40 block mb-1.5">Meal type</label>
+          <div className="flex gap-2 flex-wrap">
+            {MEAL_TYPES.map((t) => (
+              <button
+                key={t}
+                onClick={() => setMealType(t)}
+                className={`px-3 py-1.5 rounded-full text-xs font-medium capitalize transition-all ${
+                  mealType === t ? 'bg-sage-deep text-white' : 'bg-sand text-ink-60'
+                }`}
+              >
+                {t.replace('_', ' ')}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Serving */}
+        <div>
+          <label className="text-xs text-ink-40 block mb-1.5">Serving (g)</label>
+          <div className="flex items-center gap-3">
+            <input
+              type="number"
+              inputMode="decimal"
+              value={servingText}
+              onChange={(e) => setServingText(e.target.value)}
+              className="flex-1 px-4 py-3 rounded-xl border border-sand bg-cream-card text-plum-dark text-center focus:outline-none focus:border-sage-primary"
+            />
+          </div>
+          {scale !== 1 && (
+            <p className="text-xs text-ink-40 mt-1 text-center">
+              → {Math.round(meal.nutrition.calories * scale)} kcal · {Math.round(meal.nutrition.protein_g * scale * 10) / 10}g P
+            </p>
+          )}
+        </div>
+
+        <button
+          onClick={save}
+          className="w-full bg-sage-deep text-white py-3.5 rounded-2xl font-semibold"
+        >
+          Save
+        </button>
+      </div>
     </div>
   );
 }

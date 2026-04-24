@@ -22,7 +22,8 @@
 }
 
 html {
-  font-size: 15px;
+  /* 16px is the iOS threshold below which Safari auto-zooms on input focus */
+  font-size: 16px;
 }
 
 body {
@@ -31,6 +32,18 @@ body {
   font-family: 'Inter', sans-serif;
   line-height: 1.55;
   overscroll-behavior: none;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Prevent iOS Safari viewport zoom on input/textarea focus */
+input, textarea, select {
+  font-size: 16px !important;
+}
+
+/* Momentum scrolling for all overflow containers */
+.overflow-y-auto, .overflow-x-auto {
+  -webkit-overflow-scrolling: touch;
 }
 
 .font-display {
@@ -90,4 +103,18 @@ body {
 /* Main content padding to avoid bottom nav */
 .main-content {
   padding-bottom: calc(64px + env(safe-area-inset-bottom, 0px));
+}
+
+/* Prevent iOS back-swipe from firing on scanner / full-screen overlay */
+.touch-none {
+  touch-action: none;
+}
+
+/* Minimum 44×44 tap target (iOS HIG) on small icon buttons */
+.tap-target {
+  min-width: 44px;
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }

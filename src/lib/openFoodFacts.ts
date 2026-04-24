@@ -95,3 +95,42 @@ export async function searchFood(query: string): Promise<
     return [];
   }
 }
+
+/**
+ * Search the Open Food Facts Israel product database.
+ * Returns packaged products sold in Israel (Hebrew and international brands).
+ */
+export async function searchFoodIsrael(query: string): Promise<
+  Array<{ id: string; name: string; nutrition: NutritionData }>
+> {
+  try {
+    const params = new URLSearchParams({
+      search_terms: query,
+      search_simple: '1',
+      action: 'process',
+      json: '1',
+      page_size: '10',
+      fields: 'id,product_name,nutriments',
+      // Restrict to products tagged with Israel country
+      tagtype_0: 'countries',
+      tag_contains_0: 'contains',
+      tag_0: 'israel',
+    });
+
+    const res = await fetch(`https://world.openfoodfacts.org/cgi/search.pl?${params.toString()}`);
+    if (!res.ok) return [];
+    const data = await res.json();
+    if (!data.products) return [];
+
+    return (data.products as Array<OFFProduct & { id?: string }>)
+      .filter((p) => p.product_name)
+      .slice(0, 10)
+      .map((p) => ({
+        id: p.id ?? String(Math.random()),
+        name: p.product_name ?? 'Unknown',
+        nutrition: parseNutrition(p.nutriments),
+      }));
+  } catch {
+    return [];
+  }
+}

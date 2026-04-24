@@ -113,14 +113,19 @@ export interface AppState {
   activeProfileId: string;
   profiles: Profile[];
   appSettings: { units: 'metric' | 'imperial'; theme: 'auto' | 'light' | 'dark'; language: string };
+  hasOnboarded: boolean;
   // Actions
   setActiveProfile: (id: string) => void;
   addProfile: (profile: Profile) => void;
   updateProfile: (id: string, updates: Partial<Profile>) => void;
+  deleteProfile: (profileId: string) => void;
   logMeal: (profileId: string, meal: LoggedMeal) => void;
   removeMeal: (profileId: string, mealId: string) => void;
+  updateMeal: (profileId: string, mealId: string, updates: Partial<LoggedMeal>) => void;
   logWeight: (profileId: string, kg: number) => void;
   updateTargets: (profileId: string, targets: Targets) => void;
+  /** Called when the user finishes onboarding. Replaces demo profiles with the real one. */
+  completeOnboarding: (profile: Profile) => void;
 }
 
 // Helper: today timestamps
@@ -458,6 +463,7 @@ export const useAppStore = create<AppState>()(
       activeProfileId: 'pcos-demo',
       profiles: defaultProfiles,
       appSettings: { units: 'metric', theme: 'auto', language: 'en' },
+      hasOnboarded: false,
 
       setActiveProfile: (id) => set({ activeProfileId: id }),
 
@@ -470,6 +476,25 @@ export const useAppStore = create<AppState>()(
             p.id === id ? { ...p, ...updates } : p
           ),
         })),
+
+      deleteProfile: (profileId) =>
+        set((state) => {
+          const remaining = state.profiles.filter((p) => p.id !== profileId);
+          return {
+            profiles: remaining,
+            activeProfileId:
+              state.activeProfileId === profileId
+                ? (remaining[0]?.id ?? '')
+                : state.activeProfileId,
+          };
+        }),
+
+      completeOnboarding: (profile) =>
+        set({
+          profiles: [profile],
+          activeProfileId: profile.id,
+          hasOnboarded: true,
+        }),
 
       logMeal: (profileId, meal) =>
         set((state) => ({
@@ -485,6 +510,20 @@ export const useAppStore = create<AppState>()(
           profiles: state.profiles.map((p) =>
             p.id === profileId
               ? { ...p, foodLog: p.foodLog.filter((m) => m.id !== mealId) }
+              : p
+          ),
+        })),
+
+      updateMeal: (profileId, mealId, updates) =>
+        set((state) => ({
+          profiles: state.profiles.map((p) =>
+            p.id === profileId
+              ? {
+                  ...p,
+                  foodLog: p.foodLog.map((m) =>
+                    m.id === mealId ? { ...m, ...updates } : m
+                  ),
+                }
               : p
           ),
         })),
@@ -514,7 +553,15 @@ export const useAppStore = create<AppState>()(
     }),
     {
       name: 'balance-storage',
-      version: 1,
+      version: 2,
+      // Migrate v1 → v2: existing users keep their data and skip onboarding
+      migrate: (persistedState: unknown, version: number) => {
+        const s = persistedState as Partial<AppState>;
+        if (version === 1) {
+          return { ...s, hasOnboarded: true };
+        }
+        return s;
+      },
     }
   )
 );

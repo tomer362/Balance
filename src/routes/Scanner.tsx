@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { X, Zap, FlipHorizontal, Check } from 'lucide-react';
+import { X, Zap, ZapOff, FlipHorizontal, Check } from 'lucide-react';
 import { Html5Qrcode } from 'html5-qrcode';
 import { useAppStore, selectActiveProfile } from '../store/appStore';
 import type { NutritionData, LoggedMeal } from '../store/appStore';
@@ -16,6 +16,11 @@ interface ScannedProduct {
   image?: string;
   nutrition: NutritionData;
   ingredients?: string[];
+}
+
+interface CameraDevice {
+  id: string;
+  label: string;
 }
 
 const QUICK_INGREDIENTS = [
@@ -44,9 +49,18 @@ export default function Scanner() {
   const [selectedIngredients, setSelectedIngredients] = useState<string[]>([]);
   const [manualQuery, setManualQuery] = useState('');
   const [logged, setLogged] = useState(false);
+  const [flashOn, setFlashOn] = useState(false);
+  const [hasMultipleCameras, setHasMultipleCameras] = useState(false);
 
   const scannerRef = useRef<Html5Qrcode | null>(null);
+  const camerasRef = useRef<CameraDevice[]>([]);
+  const cameraIndexRef = useRef(0);
+  // Guard against the scanner success callback firing twice for the same frame
+  const isProcessingRef = useRef(false);
 
+  // Drive scanner lifecycle from mode + product state.
+  // Adding product to deps so when user goes "back" (setProduct(null)),
+  // the effect cleanup stops the old scanner and the new effect starts a fresh one.
   useEffect(() => {
     if (mode === 'barcode' && !product) {
       startScanner();
@@ -54,35 +68,133 @@ export default function Scanner() {
     return () => {
       stopScanner();
     };
-  }, [mode]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mode, product]);
 
   async function startScanner() {
+    setError(null);
+    isProcessingRef.current = false;
+
+    // Wait two animation frames so React has committed the DOM and
+    // the flex-1 container has resolved its layout dimensions.
+    await new Promise<void>((resolve) =>
+      requestAnimationFrame(() => requestAnimationFrame(() => resolve()))
+    );
+
+    const el = document.getElementById('qr-reader');
+    if (!el) {
+      setError('Camera view failed to render. Please reload.');
+      return;
+    }
+
+    // Ensure the container has a non-zero size before html5-qrcode
+    // computes its internal qrbox from clientWidth/clientHeight.
+    if (el.clientWidth === 0 || el.clientHeight === 0) {
+      // One more frame – occasionally needed on very slow iPhones
+      await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
+      if (el.clientWidth === 0) {
+        setError('Camera view not ready. Please try again.');
+        return;
+      }
+    }
+
     try {
+      // Enumerate cameras once – getCameras() is the iOS-safe API
+      if (camerasRef.current.length === 0) {
+        camerasRef.current = await Html5Qrcode.getCameras();
+      }
+
+      if (camerasRef.current.length === 0) {
+        setError('No camera found on this device.');
+        return;
+      }
+
+      setHasMultipleCameras(camerasRef.current.length > 1);
+
+      // Default to the rear camera on first use
+      if (cameraIndexRef.current === 0 && camerasRef.current.length > 1) {
+        const rearIdx = camerasRef.current.findIndex((c) => {
+          const lbl = c.label.toLowerCase();
+          return lbl.includes('back') || lbl.includes('rear') || lbl.includes('environment');
+        });
+        cameraIndexRef.current = rearIdx >= 0 ? rearIdx : camerasRef.current.length - 1;
+      }
+
+      const cameraId = camerasRef.current[cameraIndexRef.current].id;
+
+      // Cap qrbox to fit inside the container with 20px margin on each side
+      const boxW = Math.min(260, el.clientWidth - 40);
+      const boxH = Math.round(boxW * 0.46);
+
       setScanning(true);
-      setError(null);
       const html5Qrcode = new Html5Qrcode('qr-reader');
       scannerRef.current = html5Qrcode;
+
       await html5Qrcode.start(
-        { facingMode: 'environment' },
-        { fps: 10, qrbox: { width: 250, height: 120 } },
+        { deviceId: { exact: cameraId } },
+        { fps: 10, qrbox: { width: boxW, height: boxH } },
         async (barcode) => {
+          // Double-fire guard: only process the first successful decode
+          if (isProcessingRef.current) return;
+          isProcessingRef.current = true;
           await stopScanner();
           await lookupBarcode(barcode);
         },
-        () => {}
+        () => {
+          // Per-frame decode error – normal during scanning, ignore
+        }
       );
-    } catch {
+    } catch (err) {
       setScanning(false);
-      setError('Camera access denied. Please allow camera permission and try again.');
+      const msg = err instanceof Error ? err.message : String(err);
+      if (msg.toLowerCase().includes('permission') || msg.toLowerCase().includes('denied')) {
+        setError('Camera access denied. Please allow camera permission in your browser settings and reload.');
+      } else if (msg.toLowerCase().includes('in use') || msg.toLowerCase().includes('busy') || msg.toLowerCase().includes('notreadable')) {
+        setError('Camera is in use by another app. Please close it and try again.');
+      } else if (msg.toLowerCase().includes('notfound') || msg.toLowerCase().includes('no camera')) {
+        setError('No camera found on this device. Use manual entry instead.');
+      } else {
+        setError('Could not start camera. Make sure you\'re using HTTPS and camera permission is allowed.');
+      }
     }
   }
 
   async function stopScanner() {
     if (scannerRef.current) {
-      try { await scannerRef.current.stop(); } catch {}
+      try {
+        await scannerRef.current.stop();
+      } catch {
+        // Already stopped or never fully started – safe to ignore
+      }
       scannerRef.current = null;
     }
     setScanning(false);
+    setFlashOn(false);
+  }
+
+  async function flipCamera() {
+    if (camerasRef.current.length <= 1) return;
+    cameraIndexRef.current = (cameraIndexRef.current + 1) % camerasRef.current.length;
+    await stopScanner();
+    // Let the effect drive the restart by briefly forcing a re-trigger
+    isProcessingRef.current = false;
+    startScanner();
+  }
+
+  async function toggleFlash() {
+    if (!scannerRef.current) return;
+    try {
+      // html5-qrcode v2.3 exposes torch via getRunningTrackCameraCapabilities
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const capabilities = (scannerRef.current as any).getRunningTrackCameraCapabilities?.();
+      const torch = capabilities?.torchFeature?.();
+      if (torch?.isSupported()) {
+        await torch.apply(!flashOn);
+        setFlashOn((prev) => !prev);
+      }
+    } catch {
+      // Torch not supported on this device – silently ignore
+    }
   }
 
   async function lookupBarcode(barcode: string) {
@@ -93,6 +205,7 @@ export default function Scanner() {
       setProduct(result);
     } else {
       setError(`Product not found for barcode ${barcode}. Try manual entry.`);
+      isProcessingRef.current = false;
     }
   }
 
@@ -173,8 +286,9 @@ export default function Scanner() {
 
     return (
       <div className="min-h-screen bg-cream-bg overflow-y-auto pb-8">
-        <div className="sticky top-0 z-10 bg-cream-bg px-4 py-3 flex items-center gap-3 border-b border-sand">
-          <button onClick={() => { setProduct(null); startScanner(); }} className="p-2 rounded-full hover:bg-sand">
+        <div className="sticky top-0 z-10 bg-cream-bg px-4 py-3 flex items-center gap-3 border-b border-sand pt-safe">
+          {/* Back just clears product – the useEffect will restart the scanner */}
+          <button onClick={() => setProduct(null)} className="tap-target p-2 rounded-full hover:bg-sand">
             <X size={20} className="text-plum-dark" />
           </button>
           <h1 className="font-semibold text-plum-dark">Scan result</h1>
@@ -195,7 +309,7 @@ export default function Scanner() {
           <div className="bg-cream-card rounded-2xl p-4 border border-sand">
             <div className="flex items-center justify-between mb-2">
               <span className="text-sm font-semibold text-plum-dark">
-                {profile?.mode === 'bulk' ? 'Bulk Score' : 'PCOS Score'}
+                {profile?.mode === 'bulk' ? 'Bulk Score' : profile?.mode === 'pcos' ? 'PCOS Score' : 'Score'}
               </span>
               <span className="text-2xl font-bold font-display" style={{ color: score >= 8.5 ? '#3F5D3C' : score >= 7 ? '#5C7A58' : '#E8B84F' }}>
                 {score.toFixed(1)} / 10
@@ -229,9 +343,10 @@ export default function Scanner() {
               <label className="text-xs text-ink-60 block mb-2">Serving size (g)</label>
               <input
                 type="number"
+                inputMode="numeric"
                 value={servingG}
                 onChange={(e) => setServingG(Math.max(1, Number(e.target.value)))}
-                className="w-full px-3 py-2 rounded-xl border border-sand bg-cream-bg text-sm font-mono-num"
+                className="w-full px-3 py-2 rounded-xl border border-sand bg-cream-bg font-mono-num"
               />
             </div>
           </div>
@@ -268,29 +383,45 @@ export default function Scanner() {
   }
 
   return (
-    <div className="fixed inset-0 bg-black flex flex-col">
-      {/* Header */}
-      <div className="flex items-center justify-between px-4 py-3 z-10">
+    // touch-none prevents iOS back-swipe from firing through the scanner overlay
+    <div className="touch-none fixed inset-0 bg-black flex flex-col">
+      {/* Header — pt-safe ensures content clears the Dynamic Island / notch */}
+      <div className="flex items-center justify-between px-4 pt-safe" style={{ paddingTop: 'max(env(safe-area-inset-top, 0px), 12px)', paddingBottom: 12 }}>
         <button
           onClick={() => navigate('/')}
-          className="w-10 h-10 rounded-full bg-white/10 flex items-center justify-center"
+          className="tap-target rounded-full bg-white/10 flex items-center justify-center"
         >
           <X size={20} className="text-white" />
         </button>
         <div className="flex gap-2">
-          <button className="w-10 h-10 rounded-full bg-white/10 flex items-center justify-center">
-            <Zap size={18} className="text-white" />
+          <button
+            onClick={toggleFlash}
+            className="tap-target rounded-full bg-white/10 flex items-center justify-center"
+          >
+            {flashOn
+              ? <ZapOff size={18} className="text-amber-warn" />
+              : <Zap size={18} className="text-white" />
+            }
           </button>
-          <button className="w-10 h-10 rounded-full bg-white/10 flex items-center justify-center">
-            <FlipHorizontal size={18} className="text-white" />
-          </button>
+          {hasMultipleCameras && (
+            <button
+              onClick={flipCamera}
+              className="tap-target rounded-full bg-white/10 flex items-center justify-center"
+            >
+              <FlipHorizontal size={18} className="text-white" />
+            </button>
+          )}
         </div>
       </div>
 
-      {/* Camera / content */}
-      <div className="flex-1 relative">
+      {/* Camera / content — flex-1 gives it the remaining height */}
+      <div className="flex-1 relative min-h-0">
         {mode === 'barcode' && (
-          <div id="qr-reader" className="absolute inset-0" />
+          // width/height 100% so html5-qrcode gets non-zero clientWidth/clientHeight
+          <div
+            id="qr-reader"
+            style={{ position: 'absolute', inset: 0, width: '100%', height: '100%' }}
+          />
         )}
 
         {mode === 'manual' && (
@@ -300,7 +431,7 @@ export default function Scanner() {
               value={manualQuery}
               onChange={(e) => setManualQuery(e.target.value)}
               placeholder="Search for a food…"
-              className="w-full px-4 py-3 rounded-2xl bg-white/10 text-white placeholder-white/50 text-base border border-white/20 focus:outline-none focus:border-white/40"
+              className="w-full px-4 py-3 rounded-2xl bg-white/10 text-white placeholder-white/50 border border-white/20 focus:outline-none focus:border-white/40"
               onKeyDown={(e) => e.key === 'Enter' && navigate(`/log?q=${encodeURIComponent(manualQuery)}`)}
             />
             <button
@@ -360,10 +491,23 @@ export default function Scanner() {
           </div>
         )}
 
+        {mode === 'barcode' && scanning && (
+          <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+            <div className="border-2 border-white/70 rounded-xl" style={{ width: 260, height: 120 }}>
+              {/* Corner decorations */}
+              <div className="absolute -top-0.5 -left-0.5 w-5 h-5 border-t-4 border-l-4 border-white rounded-tl-lg" />
+              <div className="absolute -top-0.5 -right-0.5 w-5 h-5 border-t-4 border-r-4 border-white rounded-tr-lg" />
+              <div className="absolute -bottom-0.5 -left-0.5 w-5 h-5 border-b-4 border-l-4 border-white rounded-bl-lg" />
+              <div className="absolute -bottom-0.5 -right-0.5 w-5 h-5 border-b-4 border-r-4 border-white rounded-br-lg" />
+            </div>
+            <p className="absolute bottom-1/4 text-white/60 text-xs tracking-wide">Point at a barcode</p>
+          </div>
+        )}
+
         {mode === 'barcode' && !scanning && !error && (
           <div className="absolute inset-0 flex items-center justify-center">
-            <div className="border-2 border-white/60 rounded-xl w-64 h-32 flex items-center justify-center">
-              <p className="text-white/60 text-xs">scanning…</p>
+            <div className="border-2 border-white/40 rounded-xl w-64 h-28 flex items-center justify-center">
+              <p className="text-white/50 text-xs">Starting camera…</p>
             </div>
           </div>
         )}
@@ -371,21 +515,32 @@ export default function Scanner() {
         {error && (
           <div className="absolute inset-0 flex flex-col items-center justify-center px-8 text-center gap-4">
             <p className="text-white/80 text-sm">{error}</p>
-            <button onClick={() => { setError(null); setMode('manual'); }} className="bg-coral-accent text-white px-5 py-2.5 rounded-xl text-sm font-medium">
-              Try manual entry
-            </button>
+            <div className="flex gap-3">
+              <button
+                onClick={() => { setError(null); startScanner(); }}
+                className="bg-white/10 text-white px-4 py-2.5 rounded-xl text-sm font-medium border border-white/20"
+              >
+                Retry
+              </button>
+              <button
+                onClick={() => { setError(null); setMode('manual'); }}
+                className="bg-coral-accent text-white px-4 py-2.5 rounded-xl text-sm font-medium"
+              >
+                Manual entry
+              </button>
+            </div>
           </div>
         )}
       </div>
 
-      {/* Mode selector */}
-      <div className="px-5 pb-8 pt-4">
+      {/* Mode selector — pb-safe clears the home indicator */}
+      <div className="px-5 pt-4 pb-safe" style={{ paddingBottom: 'max(env(safe-area-inset-bottom, 0px), 20px)' }}>
         <div className="bg-white/10 rounded-2xl p-1 flex">
           {(['barcode', 'photo', 'manual'] as ScanMode[]).map((m) => (
             <button
               key={m}
               onClick={() => { setMode(m); setError(null); }}
-              className={`flex-1 py-2 rounded-xl text-sm font-medium transition-all capitalize ${
+              className={`flex-1 py-2.5 rounded-xl text-sm font-medium transition-all capitalize ${
                 mode === m ? 'bg-white text-plum-dark shadow-sm' : 'text-white/70'
               }`}
             >
