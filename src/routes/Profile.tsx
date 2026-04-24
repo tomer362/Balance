@@ -331,6 +331,31 @@ export default function Profile() {
               })}
             </div>
 
+            {/* PCOS goal selector */}
+            <p className="text-xs text-ink-40 mb-2 mt-1">Primary focus</p>
+            <div className="flex gap-2 mb-4">
+              {([
+                { value: 'lose_weight' as const, label: 'Lose weight' },
+                { value: 'manage_symptoms' as const, label: 'Manage symptoms' },
+              ]).map(({ value, label }) => {
+                const active = (profile.pcos!.goal ?? 'lose_weight') === value;
+                return (
+                  <button
+                    key={value}
+                    data-testid={`pcos-goal-${value}`}
+                    onClick={() => updateProfile(profile.id, {
+                      pcos: { ...profile.pcos!, goal: value },
+                    })}
+                    className={`flex-1 py-2.5 rounded-xl text-xs font-semibold transition-all border ${
+                      active ? 'bg-sage-deep text-white border-sage-deep' : 'bg-cream-card border-sand text-ink-60'
+                    }`}
+                  >
+                    {label}
+                  </button>
+                );
+              })}
+            </div>
+
             <div className="flex items-center justify-between py-2 border-t border-sand">
               <span className="text-sm text-plum-dark">Phase-aware suggestions</span>
               <Toggle
@@ -441,6 +466,41 @@ export default function Profile() {
               </div>
             ))}
           </div>
+
+          {/* TDEE breakdown card */}
+          {computedTargets.tdee != null && (
+            <div className="mt-4 pt-3 border-t border-sand">
+              <p className="text-xs text-ink-40 mb-2">How your calories were calculated</p>
+              <div className="bg-sand/50 rounded-xl p-3 space-y-1.5">
+                <div className="flex justify-between text-xs">
+                  <span className="text-ink-60">TDEE (maintenance)</span>
+                  <span className="font-semibold text-plum-dark font-mono-num">{computedTargets.tdee} kcal</span>
+                </div>
+                {profile.mode === 'pcos' && (
+                  <div className="flex justify-between text-xs">
+                    <span className="text-ink-60">
+                      {(profile.pcos?.goal ?? 'lose_weight') === 'lose_weight'
+                        ? 'Deficit (−300 kcal)'
+                        : 'Adjustment (symptom management)'}
+                    </span>
+                    <span className="font-semibold text-plum-dark font-mono-num">
+                      {(profile.pcos?.goal ?? 'lose_weight') === 'lose_weight' ? '−300' : '0'} kcal
+                    </span>
+                  </div>
+                )}
+                {profile.mode === 'bulk' && (
+                  <div className="flex justify-between text-xs">
+                    <span className="text-ink-60">Surplus</span>
+                    <span className="font-semibold text-plum-dark font-mono-num">+{profile.bulk?.surplus_kcal ?? 300} kcal</span>
+                  </div>
+                )}
+                <div className="flex justify-between text-xs border-t border-sand pt-1.5 mt-1">
+                  <span className="font-medium text-plum-dark">Daily target</span>
+                  <span className="font-bold text-plum-dark font-mono-num">{computedTargets.calories} kcal</span>
+                </div>
+              </div>
+            </div>
+          )}
         </Section>
 
         {/* Dietary preferences */}

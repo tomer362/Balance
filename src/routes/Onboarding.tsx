@@ -5,6 +5,7 @@ import type { Profile } from '../store/appStore';
 import { computePCOSTargets, computeBulkTargets } from '../lib/targetComputation';
 
 type AppMode = 'pcos' | 'bulk' | 'maintain';
+type PcosGoal = 'lose_weight' | 'manage_symptoms';
 
 const MODE_CARDS: Array<{
   mode: AppMode;
@@ -40,13 +41,27 @@ const MODE_CARDS: Array<{
   },
 ];
 
+const PCOS_GOAL_OPTIONS: Array<{ value: PcosGoal; label: string; description: string }> = [
+  {
+    value: 'lose_weight',
+    label: 'Lose weight',
+    description: 'Moderate 300 kcal deficit, high protein to preserve muscle',
+  },
+  {
+    value: 'manage_symptoms',
+    label: 'Manage symptoms',
+    description: 'Maintenance calories to support hormonal balance',
+  },
+];
+
 function buildProfile(
   name: string,
   mode: AppMode,
   sex: 'female' | 'male' | 'other',
   age: number,
   weight: number,
-  height: number
+  height: number,
+  pcosGoal: PcosGoal
 ): Profile {
   const demo: Profile = {
     id: `user-${Date.now()}`,
@@ -70,6 +85,7 @@ function buildProfile(
       ? {
           pcos: {
             concerns: [],
+            goal: pcosGoal,
             cycle: { avgCycleLength: 28, avgPeriodLength: 5, history: [] },
             symptomLog: [],
             seedCyclingEnabled: false,
@@ -108,6 +124,7 @@ export default function Onboarding() {
   const [step, setStep] = useState<1 | 2 | 3>(1);
   const [name, setName] = useState('');
   const [selectedMode, setSelectedMode] = useState<AppMode | null>(null);
+  const [pcosGoal, setPcosGoal] = useState<PcosGoal>('lose_weight');
   const [sex, setSex] = useState<'female' | 'male' | 'other'>('female');
   const [age, setAge] = useState('');
   const [weight, setWeight] = useState('');
@@ -115,7 +132,7 @@ export default function Onboarding() {
 
   function skipAll() {
     const mode: AppMode = 'maintain';
-    const profile = buildProfile('', mode, 'other', 25, 70, 170);
+    const profile = buildProfile('', mode, 'other', 25, 70, 170, 'lose_weight');
     completeOnboarding(profile);
   }
 
@@ -127,7 +144,8 @@ export default function Onboarding() {
       sex,
       Number(age) || 25,
       Number(weight) || 70,
-      Number(height) || 170
+      Number(height) || 170,
+      pcosGoal
     );
     completeOnboarding(profile);
   }
@@ -188,11 +206,11 @@ export default function Onboarding() {
 
       {/* Step 2 — Mode */}
       {step === 2 && (
-        <div className="flex-1 flex flex-col px-6 pt-6">
+        <div className="flex-1 flex flex-col px-6 pt-6 overflow-y-auto">
           <h2 className="font-display text-2xl text-plum-dark mb-1">What's your goal?</h2>
           <p className="text-ink-60 text-sm mb-6">Balance will personalise everything to your mode. You can change this anytime.</p>
 
-          <div className="space-y-3 flex-1">
+          <div className="space-y-3">
             {MODE_CARDS.map((card) => {
               const active = selectedMode === card.mode;
               return (
@@ -229,6 +247,42 @@ export default function Onboarding() {
               );
             })}
           </div>
+
+          {/* PCOS goal sub-question — shown only when PCOS is selected */}
+          {selectedMode === 'pcos' && (
+            <div
+              className="mt-4 bg-sage-primary/10 rounded-2xl p-4 space-y-3"
+              data-testid="pcos-goal-section"
+            >
+              <p className="text-sm font-semibold text-plum-dark">What's your primary focus with PCOS?</p>
+              {PCOS_GOAL_OPTIONS.map((opt) => (
+                <button
+                  key={opt.value}
+                  onClick={() => setPcosGoal(opt.value)}
+                  data-testid={`pcos-goal-${opt.value}`}
+                  className={`w-full rounded-xl border-2 p-3 text-left transition-all ${
+                    pcosGoal === opt.value
+                      ? 'border-sage-deep bg-white shadow-sm'
+                      : 'border-sand bg-white/60'
+                  }`}
+                >
+                  <div className="flex items-center gap-2">
+                    <div className={`w-4 h-4 rounded-full border-2 flex-shrink-0 flex items-center justify-center ${
+                      pcosGoal === opt.value ? 'border-sage-deep' : 'border-sand'
+                    }`}>
+                      {pcosGoal === opt.value && (
+                        <div className="w-2 h-2 rounded-full bg-sage-deep" />
+                      )}
+                    </div>
+                    <div>
+                      <p className="text-sm font-medium text-plum-dark">{opt.label}</p>
+                      <p className="text-xs text-ink-60 mt-0.5">{opt.description}</p>
+                    </div>
+                  </div>
+                </button>
+              ))}
+            </div>
+          )}
 
           <button
             disabled={!selectedMode}
