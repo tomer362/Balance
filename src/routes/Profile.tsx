@@ -92,7 +92,7 @@ function AddProfileModal({ onClose }: { onClose: () => void }) {
           autoFocus
           value={name}
           onChange={(e) => setName(e.target.value)}
-          placeholder="Name (e.g. Rachel)"
+          placeholder="Your name"
           className="w-full px-4 py-3 rounded-xl border border-sand bg-cream-card text-plum-dark placeholder-ink-40 focus:outline-none focus:border-sage-primary"
         />
 

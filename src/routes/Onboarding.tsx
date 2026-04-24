@@ -171,7 +171,7 @@ export default function Onboarding() {
             type="text"
             value={name}
             onChange={(e) => setName(e.target.value)}
-            placeholder="e.g. Rachel or Tomer"
+            placeholder="Your name"
             className="w-full px-4 py-3.5 rounded-2xl border border-sand bg-cream-card text-plum-dark placeholder-ink-40 focus:outline-none focus:border-sage-primary"
           />
 
