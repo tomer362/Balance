@@ -45,6 +45,8 @@ export interface Targets {
   carbs_rest_day?: number;
   meals_per_day_target?: number;
   protein_per_meal_min?: number;
+  /** TDEE used to derive calorie target — useful for UI display */
+  tdee?: number;
 }
 
 export interface CycleData {
@@ -82,6 +84,8 @@ export interface Profile {
   preferences: { dietary_flags: string[]; dislikes: string[] };
   pcos?: {
     concerns: string[];
+    /** High-level goal that drives the calorie strategy */
+    goal?: 'lose_weight' | 'manage_symptoms';
     cycle: CycleData;
     symptomLog: Array<{ date: string; mood?: 'good' | 'ok' | 'low'; symptoms: string[]; notes?: string }>;
     seedCyclingEnabled: boolean;
@@ -553,13 +557,15 @@ export const useAppStore = create<AppState>()(
     }),
     {
       name: 'balance-storage',
-      version: 2,
+      version: 3,
       // Migrate v1 → v2: existing users keep their data and skip onboarding
+      // Migrate v2 → v3: add pcos.goal (optional, default undefined = no migration needed)
       migrate: (persistedState: unknown, version: number) => {
         const s = persistedState as Partial<AppState>;
         if (version === 1) {
           return { ...s, hasOnboarded: true };
         }
+        // v2 → v3: pcos.goal field is optional, no structural migration required
         return s;
       },
     }
