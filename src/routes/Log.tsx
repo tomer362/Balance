@@ -10,6 +10,7 @@ import { searchFoodIsrael } from '../lib/openFoodFacts';
 import { scoreFood } from '../lib/scoring';
 import { getCurrentPhase } from '../lib/cyclePhase';
 import ScoreBadge from '../components/ScoreBadge';
+import BottomSheet from '../components/BottomSheet';
 
 type TabKey = 'meals' | 'ingredients' | 'build';
 
@@ -70,11 +71,8 @@ function ServingPicker({ defaultG, defaultLabel, onConfirm, onCancel }: ServingP
   const g = Math.max(1, Number(gText) || defaultG);
 
   return (
-    <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/40" onClick={onCancel}>
-      <div
-        className="w-full max-w-md bg-cream-bg rounded-t-3xl p-6 pb-safe space-y-4"
-        onClick={(e) => e.stopPropagation()}
-      >
+    <BottomSheet onClose={onCancel}>
+      <div className="p-6 pb-safe space-y-4" data-testid="serving-picker">
         <div className="flex items-center justify-between mb-1">
           <h3 className="font-semibold text-plum-dark">Serving size</h3>
           <button onClick={onCancel} className="tap-target flex items-center justify-center">
@@ -88,6 +86,7 @@ function ServingPicker({ defaultG, defaultLabel, onConfirm, onCancel }: ServingP
           <button
             onClick={() => setGText(String(Math.max(1, g - 10)))}
             className="tap-target w-11 h-11 rounded-full bg-sand flex items-center justify-center"
+            data-testid="serving-minus"
           >
             <Minus size={18} className="text-plum-dark" />
           </button>
@@ -98,12 +97,14 @@ function ServingPicker({ defaultG, defaultLabel, onConfirm, onCancel }: ServingP
               value={gText}
               onChange={(e) => setGText(e.target.value)}
               className="flex-1 bg-transparent text-center text-lg font-semibold text-plum-dark focus:outline-none"
+              data-testid="serving-input"
             />
             <span className="text-sm text-ink-40">g</span>
           </div>
           <button
             onClick={() => setGText(String(g + 10))}
             className="tap-target w-11 h-11 rounded-full bg-sand flex items-center justify-center"
+            data-testid="serving-plus"
           >
             <Plus size={18} className="text-plum-dark" />
           </button>
@@ -127,11 +128,12 @@ function ServingPicker({ defaultG, defaultLabel, onConfirm, onCancel }: ServingP
         <button
           onClick={() => onConfirm(g)}
           className="w-full bg-sage-deep text-white py-3.5 rounded-2xl font-semibold"
+          data-testid="serving-confirm"
         >
           Add to log
         </button>
       </div>
-    </div>
+    </BottomSheet>
   );
 }
 
