@@ -2,14 +2,18 @@ import type { Profile, Targets } from '../store/appStore';
 
 /**
  * Mifflin-St Jeor BMR
+ *
+ * male:   10w + 6.25h − 5a + 5
+ * female: 10w + 6.25h − 5a − 161
+ * other:  average of the two constants → −78  (neutral / non-binary estimate)
  */
 function calculateBMR(profile: Profile): number {
   const { sex, age, height_cm, weight_kg } = profile.demographics;
-  if (sex === 'male') {
-    return 10 * weight_kg + 6.25 * height_cm - 5 * age + 5;
-  } else {
-    return 10 * weight_kg + 6.25 * height_cm - 5 * age - 161;
-  }
+  const base = 10 * weight_kg + 6.25 * height_cm - 5 * age;
+  if (sex === 'male') return base + 5;
+  if (sex === 'female') return base - 161;
+  // 'other': average of male (+5) and female (−161) constants = −78
+  return base - 78;
 }
 
 const activityMultipliers: Record<string, number> = {
@@ -27,14 +31,25 @@ function calculateTDEE(profile: Profile): number {
 }
 
 /**
- * Compute PCOS targets: TDEE - 500 kcal deficit
- * High protein, high fiber, low GL, good omega-3
+ * Compute PCOS targets.
+ *
+ * Calorie strategy:
+ *   - goal === 'lose_weight'      → TDEE − 300 kcal (evidence-based moderate deficit)
+ *   - goal === 'manage_symptoms'  → TDEE (maintenance — preserves hormonal balance)
+ *   - goal undefined              → defaults to 'lose_weight' logic
+ *
+ * Protein: 1.5 g/kg (evidence: 1.4–1.6 g/kg supports insulin sensitivity)
+ * Min calories: 1 200 kcal
  */
 export function computePCOSTargets(profile: Profile): Targets {
   const tdee = calculateTDEE(profile);
-  const calories = Math.max(1200, tdee - 500);
-  const protein_g = Math.round(profile.demographics.weight_kg * 1.3);
-  const fat_g = Math.round(calories * 0.3 / 9);
+
+  const goal = profile.pcos?.goal ?? 'lose_weight';
+  const deficit = goal === 'manage_symptoms' ? 0 : 300;
+  const calories = Math.max(1200, tdee - deficit);
+
+  const protein_g = Math.round(profile.demographics.weight_kg * 1.5);
+  const fat_g = Math.round((calories * 0.3) / 9);
   const carbs_g = Math.round((calories - protein_g * 4 - fat_g * 9) / 4);
 
   return {
@@ -47,12 +62,13 @@ export function computePCOSTargets(profile: Profile): Targets {
     max_glycemic_load: 100,
     meals_per_day_target: 4,
     protein_per_meal_min: 20,
+    tdee,
   };
 }
 
 /**
  * Compute Bulk targets: TDEE + surplus
- * High protein (2g/kg), higher carbs on training days
+ * High protein (2 g/kg), higher carbs on training days
  */
 export function computeBulkTargets(profile: Profile): Targets {
   const tdee = calculateTDEE(profile);
@@ -61,7 +77,7 @@ export function computeBulkTargets(profile: Profile): Targets {
   const calories = tdee + surplus;
 
   const protein_g = Math.round(profile.demographics.weight_kg * proteinPerKg);
-  const fat_g = Math.round(calories * 0.25 / 9);
+  const fat_g = Math.round((calories * 0.25) / 9);
   const carbs_g = Math.round((calories - protein_g * 4 - fat_g * 9) / 4);
 
   const caloriesTraining = calories + 150;
@@ -82,5 +98,6 @@ export function computeBulkTargets(profile: Profile): Targets {
     carbs_rest_day: carbsRest,
     meals_per_day_target: 5,
     protein_per_meal_min: 30,
+    tdee,
   };
 }
