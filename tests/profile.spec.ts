@@ -131,4 +131,65 @@ test.describe('Profile page', () => {
     // Fiber row should appear in Daily targets section for maintain mode
     await expect(page.getByText('Fiber')).toBeVisible();
   });
+
+  // ── Science modal ────────────────────────────────────────────────────────────
+
+  test('science modal trigger button is visible on profile page', async ({ page }) => {
+    await expect(page.getByTestId('open-science-modal')).toBeVisible();
+  });
+
+  test('clicking science modal button opens the modal', async ({ page }) => {
+    await page.getByTestId('open-science-modal').click();
+    await expect(page.getByTestId('science-modal')).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'How targets are calculated' })).toBeVisible();
+  });
+
+  test('science modal shows BMR formula section', async ({ page }) => {
+    await page.getByTestId('open-science-modal').click();
+    await expect(page.getByText(/Basal Metabolic Rate/i)).toBeVisible();
+    // Test profile: female, 75kg, 168cm, 30yo — BMR = 1489 kcal/day
+    await expect(page.getByText('= 1489 kcal/day')).toBeVisible();
+  });
+
+  test('science modal shows activity multiplier table with current level highlighted', async ({ page }) => {
+    await page.getByTestId('open-science-modal').click();
+    await expect(page.getByTestId('activity-table')).toBeVisible();
+    // Test profile uses 'moderate' activity — should show "(you)" indicator
+    await expect(page.getByText('Moderately active (you)')).toBeVisible();
+  });
+
+  test('science modal shows TDEE value', async ({ page }) => {
+    await page.getByTestId('open-science-modal').click();
+    // TDEE = round(1489 * 1.55) = 2308
+    await expect(page.getByText('= 2308 kcal/day')).toBeVisible();
+  });
+
+  test('science modal shows mode-specific macro section', async ({ page }) => {
+    await page.getByTestId('open-science-modal').click();
+    // Test profile is in PCOS mode — step 3 heading is unique to the science modal
+    await expect(page.getByText('Step 3 — Macro targets (PCOS Mode)')).toBeVisible();
+    await expect(page.getByText(/insulin sensitivity/i)).toBeVisible();
+  });
+
+  test('science modal shows references section with validated links', async ({ page }) => {
+    await page.getByTestId('open-science-modal').click();
+    await expect(page.getByText('Mifflin et al. (1990)')).toBeVisible();
+    await expect(page.getByText('WHO Healthy Diet')).toBeVisible();
+  });
+
+  test('science modal closes on backdrop click', async ({ page }) => {
+    await page.getByTestId('open-science-modal').click();
+    await expect(page.getByTestId('science-modal')).toBeVisible();
+    // Click top-left corner (backdrop)
+    await page.mouse.click(10, 10);
+    await expect(page.getByTestId('science-modal')).not.toBeVisible({ timeout: 2000 });
+  });
+
+  test('science modal closes via X button', async ({ page }) => {
+    await page.getByTestId('open-science-modal').click();
+    await expect(page.getByTestId('science-modal')).toBeVisible();
+    // The X close button is inside the modal content (stops propagation)
+    await page.getByTestId('science-modal').locator('button').last().click();
+    await expect(page.getByTestId('science-modal')).not.toBeVisible({ timeout: 2000 });
+  });
 });
