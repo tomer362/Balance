@@ -10,6 +10,7 @@ import { sumNutrients } from '../lib/gapAnalysis';
 import { getSuggestions } from '../lib/suggestionEngine';
 import { getCurrentPhase, getPhaseName, getPhaseColor } from '../lib/cyclePhase';
 import { scoreFood } from '../lib/scoring';
+import BottomSheet from '../components/BottomSheet';
 
 function greetingByHour(): string {
   const h = new Date().getHours();
@@ -285,11 +286,8 @@ function EditMealSheet({
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/40" onClick={onClose}>
-      <div
-        className="w-full max-w-md bg-cream-bg rounded-t-3xl p-5 pb-safe space-y-4"
-        onClick={(e) => e.stopPropagation()}
-      >
+    <BottomSheet onClose={onClose}>
+      <div className="p-5 pb-safe space-y-4" data-testid="edit-meal-sheet">
         <div className="flex items-center justify-between">
           <h3 className="font-semibold text-plum-dark">Edit meal</h3>
           <button onClick={onClose} className="tap-target flex items-center justify-center">
@@ -305,6 +303,7 @@ function EditMealSheet({
             value={name}
             onChange={(e) => setName(e.target.value)}
             className="w-full px-4 py-3 rounded-xl border border-sand bg-cream-card text-plum-dark focus:outline-none focus:border-sage-primary"
+            data-testid="edit-meal-name"
           />
         </div>
 
@@ -336,6 +335,7 @@ function EditMealSheet({
               value={servingText}
               onChange={(e) => setServingText(e.target.value)}
               className="flex-1 px-4 py-3 rounded-xl border border-sand bg-cream-card text-plum-dark text-center focus:outline-none focus:border-sage-primary"
+              data-testid="edit-meal-serving"
             />
           </div>
           {scale !== 1 && (
@@ -348,11 +348,12 @@ function EditMealSheet({
         <button
           onClick={save}
           className="w-full bg-sage-deep text-white py-3.5 rounded-2xl font-semibold"
+          data-testid="edit-meal-save"
         >
           Save
         </button>
       </div>
-    </div>
+    </BottomSheet>
   );
 }
 
