@@ -140,10 +140,10 @@ function daysAgo(n: number): string {
   return d.toISOString().split('T')[0];
 }
 
-// Seed meals for Maya (PCOS mode)
-const mayaMeals: LoggedMeal[] = [
+// Seed meals for PCOS demo profile
+const pcosMeals: LoggedMeal[] = [
   {
-    id: 'maya-meal-1',
+    id: 'pcos-meal-1',
     timestamp: todayAt(8, 15),
     meal_type: 'breakfast',
     name: 'Greek Yogurt + Berries + Chia',
@@ -165,7 +165,7 @@ const mayaMeals: LoggedMeal[] = [
     cyclePhase: 'luteal',
   },
   {
-    id: 'maya-meal-2',
+    id: 'pcos-meal-2',
     timestamp: todayAt(13, 0),
     meal_type: 'lunch',
     name: 'Quinoa Salmon Bowl',
@@ -187,7 +187,7 @@ const mayaMeals: LoggedMeal[] = [
     cyclePhase: 'luteal',
   },
   {
-    id: 'maya-meal-3',
+    id: 'pcos-meal-3',
     timestamp: todayAt(16, 30),
     meal_type: 'snack',
     name: 'Chia Pudding + Berries + Walnuts',
@@ -210,10 +210,10 @@ const mayaMeals: LoggedMeal[] = [
   },
 ];
 
-// Seed meals for Tomer (Bulk mode)
-const tomerMeals: LoggedMeal[] = [
+// Seed meals for Bulk demo profile
+const bulkMeals: LoggedMeal[] = [
   {
-    id: 'tomer-meal-1',
+    id: 'bulk-meal-1',
     timestamp: todayAt(7, 30),
     meal_type: 'breakfast',
     name: 'Oats + Whey + Banana',
@@ -235,7 +235,7 @@ const tomerMeals: LoggedMeal[] = [
     isTrainingDay: true,
   },
   {
-    id: 'tomer-meal-2',
+    id: 'bulk-meal-2',
     timestamp: todayAt(12, 30),
     meal_type: 'lunch',
     name: 'Chicken Rice Bowl',
@@ -257,7 +257,7 @@ const tomerMeals: LoggedMeal[] = [
     isTrainingDay: true,
   },
   {
-    id: 'tomer-meal-3',
+    id: 'bulk-meal-3',
     timestamp: todayAt(15, 45),
     meal_type: 'pre_workout',
     name: 'Sweet Potato + Salmon + Greens',
@@ -279,7 +279,7 @@ const tomerMeals: LoggedMeal[] = [
     isTrainingDay: true,
   },
   {
-    id: 'tomer-meal-4',
+    id: 'bulk-meal-4',
     timestamp: todayAt(19, 0),
     meal_type: 'post_workout',
     name: 'Ground Beef + Rice + Vegetables',
@@ -304,8 +304,8 @@ const tomerMeals: LoggedMeal[] = [
 
 const defaultProfiles: Profile[] = [
   {
-    id: 'maya',
-    name: 'Maya',
+    id: 'pcos-demo',
+    name: 'PCOS Profile',
     mode: 'pcos',
     demographics: {
       sex: 'female',
@@ -326,7 +326,7 @@ const defaultProfiles: Profile[] = [
       meals_per_day_target: 4,
       protein_per_meal_min: 20,
     },
-    foodLog: mayaMeals,
+    foodLog: pcosMeals,
     mealPlan: {
       [todayStr()]: {
         breakfast: 'greek-yogurt-berries-chia',
@@ -391,8 +391,8 @@ const defaultProfiles: Profile[] = [
     },
   },
   {
-    id: 'tomer',
-    name: 'Tomer',
+    id: 'bulk-demo',
+    name: 'Bulk Profile',
     mode: 'bulk',
     demographics: {
       sex: 'male',
@@ -416,7 +416,7 @@ const defaultProfiles: Profile[] = [
       meals_per_day_target: 5,
       protein_per_meal_min: 30,
     },
-    foodLog: tomerMeals,
+    foodLog: bulkMeals,
     mealPlan: {
       [todayStr()]: {
         breakfast: 'oats-whey-banana',
@@ -455,7 +455,7 @@ const defaultProfiles: Profile[] = [
 export const useAppStore = create<AppState>()(
   persist(
     (set) => ({
-      activeProfileId: 'maya',
+      activeProfileId: 'pcos-demo',
       profiles: defaultProfiles,
       appSettings: { units: 'metric', theme: 'auto', language: 'en' },
 
