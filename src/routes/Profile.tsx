@@ -75,9 +75,12 @@ function AddProfileModal({ onClose }: { onClose: () => void }) {
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/40" onClick={onClose}>
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4"
+      onClick={onClose}
+    >
       <div
-        className="w-full max-w-md bg-cream-bg rounded-t-3xl p-5 pb-safe space-y-4"
+        className="w-full max-w-sm bg-cream-bg rounded-3xl p-5 space-y-4 shadow-xl"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center justify-between">
@@ -89,7 +92,6 @@ function AddProfileModal({ onClose }: { onClose: () => void }) {
 
         <input
           type="text"
-          autoFocus
           value={name}
           onChange={(e) => setName(e.target.value)}
           placeholder="Your name"
@@ -222,6 +224,7 @@ export default function Profile() {
       <div className="px-4 space-y-4 pb-6">
         {/* Profile card */}
         <button
+          data-testid="profile-card"
           onClick={() => setShowProfileSwitcher(!showProfileSwitcher)}
           className="w-full bg-cream-card rounded-2xl border border-sand p-4 flex items-center gap-3 text-left"
         >
@@ -289,6 +292,7 @@ export default function Profile() {
             {(['pcos', 'bulk', 'maintain'] as const).map((m) => (
               <button
                 key={m}
+                data-testid={`mode-${m}`}
                 onClick={() => updateProfile(profile.id, { mode: m })}
                 className="w-full flex items-center gap-3 py-1"
               >
@@ -543,13 +547,19 @@ function Toggle({ checked, onChange }: { checked: boolean; onChange: () => void 
   return (
     <button
       onClick={onChange}
-      className={`w-10 h-6 rounded-full transition-colors relative flex-shrink-0 ${checked ? 'bg-sage-deep' : 'bg-sand'}`}
+      data-testid="toggle"
+      aria-pressed={checked}
+      className="min-h-[44px] min-w-[44px] flex items-center justify-center flex-shrink-0"
     >
       <span
-        className={`absolute top-0.5 w-5 h-5 rounded-full bg-white shadow-sm transition-transform ${
-          checked ? 'translate-x-4' : 'translate-x-0.5'
-        }`}
-      />
+        className={`w-12 h-7 rounded-full transition-colors relative ${checked ? 'bg-sage-deep' : 'bg-sand'}`}
+      >
+        <span
+          className={`absolute top-1 w-5 h-5 rounded-full bg-white shadow-sm transition-transform ${
+            checked ? 'translate-x-6' : 'translate-x-1'
+          }`}
+        />
+      </span>
     </button>
   );
 }
