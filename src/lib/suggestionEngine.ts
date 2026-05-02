@@ -1,6 +1,6 @@
 import type { Profile, MealItem, LoggedMeal } from '../store/appStore';
 import { analyzeGaps, sumNutrients } from './gapAnalysis';
-import { mealDatabase } from '../data/mealDatabase';
+import { allMeals } from '../data/allMeals';
 import { getCurrentPhase } from './cyclePhase';
 
 function isTrainingDay(profile: Profile): boolean {
@@ -71,7 +71,7 @@ export function getSuggestions(profile: Profile, count = 5): ScoredMeal[] {
 
   const cyclePhase = profile.mode === 'pcos' ? getCurrentPhase(profile).phase : undefined;
 
-  const scored: ScoredMeal[] = mealDatabase.map((meal) => {
+  const scored: ScoredMeal[] = allMeals.map((meal) => {
     const baseScore = profile.mode === 'pcos'
       ? (meal.pcos_score ?? 5)
       : (meal.bulk_score ?? meal.pcos_score ?? 5);

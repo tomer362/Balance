@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ArrowLeft, ShoppingCart, Check, Share2, ChevronLeft, ChevronRight, X } from 'lucide-react';
 import { useAppStore, selectActiveProfile } from '../store/appStore';
-import { mealDatabase } from '../data/mealDatabase';
+import { allMeals } from '../data/allMeals';
 import { getSuggestions } from '../lib/suggestionEngine';
 import ScoreBadge from '../components/ScoreBadge';
 
@@ -106,7 +106,7 @@ export default function Groceries() {
 
   function getMealById(id?: string) {
     if (!id) return null;
-    return mealDatabase.find((m) => m.id === id) ?? null;
+    return allMeals.find((m) => m.id === id) ?? null;
   }
 
   const SLOTS: { label: string; slot: SlotKey; meal: ReturnType<typeof getMealById> }[] = [

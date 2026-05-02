@@ -3,7 +3,7 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import { ArrowLeft, Search, Plus, Check, ChevronRight, X, Minus, Barcode, Layers } from 'lucide-react';
 import { useAppStore, selectActiveProfile } from '../store/appStore';
 import type { LoggedMeal, MealItem, NutritionData } from '../store/appStore';
-import { mealDatabase } from '../data/mealDatabase';
+import { allMeals } from '../data/allMeals';
 import { ingredientDatabase, searchIngredients, scaleIngredient } from '../data/ingredientDatabase';
 import type { Ingredient } from '../data/ingredientDatabase';
 import { searchFoodIsrael } from '../lib/openFoodFacts';
@@ -322,14 +322,14 @@ export default function Log() {
   if (!profile) return null;
 
   const mealFiltered = query.length > 1
-    ? mealDatabase.filter(
+    ? allMeals.filter(
         (m) =>
           m.name.toLowerCase().includes(query.toLowerCase()) ||
           m.tags.some((t) => t.includes(query.toLowerCase()))
       )
     : [];
 
-  const favorites = mealDatabase
+  const favorites = allMeals
     .filter((m) => (profile.mode === 'pcos' ? m.pcos_score >= 8.5 : (m.bulk_score ?? 0) >= 8.5))
     .sort((a, b) =>
       profile.mode === 'pcos' ? b.pcos_score - a.pcos_score : (b.bulk_score ?? 0) - (a.bulk_score ?? 0)
