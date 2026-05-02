@@ -164,6 +164,14 @@ function daysAgo(n: number): string {
   return d.toISOString().split('T')[0];
 }
 
+function upsertWeightHistoryEntry(
+  history: Array<{ date: string; kg: number }>,
+  next: { date: string; kg: number }
+): Array<{ date: string; kg: number }> {
+  const filtered = history.filter((entry) => entry.date !== next.date);
+  return [...filtered, next].sort((a, b) => a.date.localeCompare(b.date));
+}
+
 // Seed meals for PCOS demo profile
 const pcosMeals: LoggedMeal[] = [
   {
@@ -592,10 +600,10 @@ export const useAppStore = create<AppState>()(
               ? {
                   ...p,
                   demographics: { ...p.demographics, weight_kg: kg, goal_weight_kg: deriveGoalWeight(p, kg) },
-                  weightHistory: [
-                    ...p.weightHistory,
-                    { date: new Date().toISOString().split('T')[0], kg },
-                  ],
+                  weightHistory: upsertWeightHistoryEntry(p.weightHistory, {
+                    date: new Date().toISOString().split('T')[0],
+                    kg,
+                  }),
                 }
               : p
           ),

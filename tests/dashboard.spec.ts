@@ -70,7 +70,7 @@ test.describe('Dashboard EditMealSheet', () => {
     await page.getByTestId('dashboard-weight-input').fill('80');
     await page.getByTestId('dashboard-weight-save').click();
     await expect(page.getByTestId('weight-update-sheet')).not.toBeVisible({ timeout: 2000 });
-    await expect(page.getByText('80 kg')).toBeVisible();
-    await expect(page.getByText('72 kg goal')).toBeVisible();
+    await expect(page.getByTestId('dashboard-weight-update')).toContainText('80 kg');
+    await expect(page.getByTestId('dashboard-weight-update')).toContainText('72 kg');
   });
 });

@@ -113,22 +113,22 @@ test.describe('Profile page', () => {
 
   test('clicking pcos info button shows plan explanation modal', async ({ page }) => {
     await page.getByRole('button', { name: /About pcos mode/i }).click();
-    await expect(page.getByRole('heading', { name: 'PCOS Mode' })).toBeVisible();
-    await expect(page.getByText(/insulin sensitivity/i)).toBeVisible();
+    await expect(page.getByText('PCOS Mode').first()).toBeVisible();
+    await expect(page.getByText('Supports insulin sensitivity & hormone balance', { exact: true })).toBeVisible();
   });
 
   test('clicking maintain info button shows maintain explanation', async ({ page }) => {
     await page.getByRole('button', { name: /About maintain mode/i }).click();
-    await expect(page.getByText('Maintain Mode')).toBeVisible();
-    await expect(page.getByText(/weight stable/i)).toBeVisible();
+    await expect(page.getByText('Maintain').first()).toBeVisible();
+    await expect(page.getByText('Keeps weight stable with balanced nutrition')).toBeVisible();
   });
 
   test('plan info modal closes on backdrop click', async ({ page }) => {
     await page.getByRole('button', { name: /About maintain mode/i }).click();
-    await expect(page.getByText('Maintain Mode')).toBeVisible();
+    await expect(page.getByText('Keeps weight stable with balanced nutrition')).toBeVisible();
     // Click the backdrop (the overlay behind the modal)
     await page.mouse.click(10, 10);
-    await expect(page.getByText(/weight stable/i)).not.toBeVisible({ timeout: 2000 });
+    await expect(page.getByText('Keeps weight stable with balanced nutrition')).not.toBeVisible({ timeout: 2000 });
   });
 
   // ── Maintain mode targets ───────────────────────────────────────────────────

@@ -1,13 +1,11 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ArrowLeft, Plus } from 'lucide-react';
-import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from 'recharts';
+import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, Legend } from 'recharts';
 import { useAppStore, selectActiveProfile } from '../store/appStore';
 import { getCurrentPhase, getPhaseColor } from '../lib/cyclePhase';
 import { sumNutrients } from '../lib/gapAnalysis';
 import { directionalIconClass, formatAmountWithUnit, phaseBrief, phaseShortName, useI18n } from '../lib/i18n';
-
-type Period = 'week' | 'month' | '3m' | 'year';
 
 function polarToCartesian(cx: number, cy: number, r: number, angleDeg: number) {
   const rad = ((angleDeg - 90) * Math.PI) / 180;
@@ -28,6 +26,59 @@ const PHASE_ZONES = [
   { phase: 'ovulatory', startFrac: 19 / 38, endFrac: 22 / 38, color: '#5C7A58' },
   { phase: 'luteal', startFrac: 22 / 38, endFrac: 1, color: '#E8B84F' },
 ];
+
+type Period = 'week' | 'month' | '3m' | 'year';
+type WeightEntry = { date: string; kg: number };
+
+function startOfWeek(date: Date): Date {
+  const copy = new Date(date);
+  const day = copy.getDay();
+  const diff = day === 0 ? -6 : 1 - day;
+  copy.setDate(copy.getDate() + diff);
+  copy.setHours(0, 0, 0, 0);
+  return copy;
+}
+
+function formatShortDate(date: Date, language: 'en' | 'he'): string {
+  return date.toLocaleDateString(language === 'he' ? 'he-IL' : 'en-US', {
+    month: 'short',
+    day: 'numeric',
+  });
+}
+
+function average(values: number[]): number {
+  if (values.length === 0) return 0;
+  return values.reduce((sum, value) => sum + value, 0) / values.length;
+}
+
+function buildWeightChartData(history: WeightEntry[], language: 'en' | 'he') {
+  const weeklyAverages = new Map<string, number>();
+  const entriesByWeek = new Map<string, number[]>();
+
+  history.forEach((entry) => {
+    const weekKey = startOfWeek(new Date(entry.date)).toISOString().split('T')[0];
+    const weekEntries = entriesByWeek.get(weekKey) ?? [];
+    weekEntries.push(entry.kg);
+    entriesByWeek.set(weekKey, weekEntries);
+  });
+
+  entriesByWeek.forEach((weights, weekKey) => {
+    weeklyAverages.set(weekKey, Number(average(weights).toFixed(2)));
+  });
+
+  return history.map((entry, index) => {
+    const date = new Date(entry.date);
+    const weekKey = startOfWeek(date).toISOString().split('T')[0];
+    const movingWindow = history.slice(Math.max(0, index - 2), index + 1).map((item) => item.kg);
+    return {
+      date: entry.date,
+      label: formatShortDate(date, language),
+      weight: entry.kg,
+      weeklyAverage: weeklyAverages.get(weekKey) ?? entry.kg,
+      movingAverage: Number(average(movingWindow).toFixed(2)),
+    };
+  });
+}
 
 export default function Progress() {
   const { copy, language } = useI18n();
@@ -53,7 +104,6 @@ export default function Progress() {
     return d >= cutoff;
   });
 
-  // Filter weight history
   const now = new Date();
   const cutoffDate = new Date(now);
   if (period === 'week') cutoffDate.setDate(now.getDate() - 7);
@@ -61,13 +111,52 @@ export default function Progress() {
   else if (period === '3m') cutoffDate.setDate(now.getDate() - 90);
   else cutoffDate.setFullYear(now.getFullYear() - 1);
 
-  const filteredWeight = profile.weightHistory
+  const filteredWeightHistory = [...profile.weightHistory]
     .filter((w) => new Date(w.date) >= cutoffDate)
-    .map((w) => ({ date: w.date.slice(5), weight: w.kg }));
+    .sort((a, b) => a.date.localeCompare(b.date));
 
-  const weightChange = filteredWeight.length >= 2
-    ? filteredWeight[filteredWeight.length - 1].weight - filteredWeight[0].weight
+  const weightChartData = buildWeightChartData(filteredWeightHistory, language);
+  const latestWeight = filteredWeightHistory[filteredWeightHistory.length - 1]?.kg ?? profile.demographics.weight_kg;
+  const firstWeight = filteredWeightHistory[0]?.kg ?? latestWeight;
+  const weightChange = filteredWeightHistory.length >= 2
+    ? latestWeight - firstWeight
     : 0;
+  const entryCount = filteredWeightHistory.length;
+  const daysCovered = filteredWeightHistory.length >= 2
+    ? Math.max(
+        1,
+        Math.round(
+          (new Date(filteredWeightHistory[filteredWeightHistory.length - 1].date).getTime() -
+            new Date(filteredWeightHistory[0].date).getTime()) /
+            86400000
+        )
+      )
+    : 0;
+  const averageWeeklyChange = daysCovered > 0 ? (weightChange / daysCovered) * 7 : 0;
+  const currentWeeklyAverage = weightChartData.length > 0
+    ? weightChartData[weightChartData.length - 1].weeklyAverage
+    : latestWeight;
+  const recentMovingAverage = weightChartData.length > 0
+    ? weightChartData[weightChartData.length - 1].movingAverage
+    : latestWeight;
+  const minWeight = filteredWeightHistory.length > 0 ? Math.min(...filteredWeightHistory.map((entry) => entry.kg)) : latestWeight;
+  const maxWeight = filteredWeightHistory.length > 0 ? Math.max(...filteredWeightHistory.map((entry) => entry.kg)) : latestWeight;
+  const progressTowardGoal = Math.abs(firstWeight - profile.demographics.goal_weight_kg) > 0
+    ? Math.max(
+        -100,
+        Math.min(
+          100,
+          Math.round(
+            ((Math.abs(firstWeight - profile.demographics.goal_weight_kg) -
+              Math.abs(latestWeight - profile.demographics.goal_weight_kg)) /
+              Math.abs(firstWeight - profile.demographics.goal_weight_kg)) *
+              100
+          )
+        )
+      )
+    : 0;
+  const latestWeightDate = filteredWeightHistory[filteredWeightHistory.length - 1]?.date ?? today;
+  const recentEntries = [...filteredWeightHistory].reverse().slice(0, 6);
 
   // Macro adherence
   const targets = profile.targets;
@@ -154,50 +243,84 @@ export default function Progress() {
             <button
               onClick={() => setShowWeightInput(!showWeightInput)}
               className="w-8 h-8 rounded-full bg-sand flex items-center justify-center"
+              data-testid="progress-weight-toggle"
             >
               <Plus size={16} className="text-ink-60" />
             </button>
           </div>
 
           {showWeightInput && (
-            <div className="flex gap-2 mb-3">
-              <input
-                type="number"
-                value={newWeight}
-                onChange={(e) => setNewWeight(e.target.value)}
-                placeholder={copy.progress.currentWeightKg}
-                className="flex-1 px-3 py-2 rounded-xl border border-sand text-sm bg-cream-bg"
-              />
-              <button
-                onClick={() => {
-                  if (newWeight && profile) {
-                    logWeight(profile.id, parseFloat(newWeight));
-                    setNewWeight('');
-                    setShowWeightInput(false);
-                  }
-                }}
-                className="px-3 py-2 bg-sage-deep text-white rounded-xl text-sm font-medium"
-              >
-                {copy.progress.log}
-              </button>
+            <div className="mb-4 rounded-2xl bg-sand/35 p-3">
+              <div className="flex gap-2">
+                <input
+                  type="number"
+                  inputMode="decimal"
+                  value={newWeight}
+                  onChange={(e) => setNewWeight(e.target.value)}
+                  placeholder={copy.progress.currentWeightKg}
+                  className="flex-1 px-3 py-2 rounded-xl border border-sand text-sm bg-cream-bg"
+                  data-testid="progress-weight-input"
+                />
+                <button
+                  onClick={() => {
+                    if (newWeight && profile) {
+                      logWeight(profile.id, Math.round(parseFloat(newWeight) * 10) / 10);
+                      setNewWeight('');
+                      setShowWeightInput(false);
+                    }
+                  }}
+                  className="px-3 py-2 bg-sage-deep text-white rounded-xl text-sm font-medium"
+                  data-testid="progress-weight-save"
+                >
+                  {copy.progress.log}
+                </button>
+              </div>
+              <p className="text-xs text-ink-40 mt-2">
+                {copy.progress.lastLogged(formatShortDate(new Date(latestWeightDate), language,))}
+              </p>
             </div>
           )}
 
-          {filteredWeight.length > 1 ? (
+          {weightChartData.length > 1 ? (
             <>
-              <ResponsiveContainer width="100%" height={140}>
-                <LineChart data={filteredWeight}>
+              <div className="grid grid-cols-2 gap-2 mb-4" data-testid="weight-analysis-cards">
+                <MetricPill
+                  label={copy.progress.current}
+                  value={formatAmountWithUnit(latestWeight, 'kg', language, 1)}
+                  tone="neutral"
+                />
+                <MetricPill
+                  label={copy.progress.changeThisPeriod}
+                  value={`${weightChange > 0 ? '+' : ''}${formatAmountWithUnit(weightChange, 'kg', language, 1)}`}
+                  tone={weightChange > 0 ? (profile.mode === 'bulk' ? 'good' : 'warn') : weightChange < 0 ? (profile.mode === 'bulk' ? 'warn' : 'good') : 'neutral'}
+                />
+                <MetricPill
+                  label={copy.progress.weeklyAverage}
+                  value={formatAmountWithUnit(currentWeeklyAverage, 'kg', language, 1)}
+                  tone="neutral"
+                />
+                <MetricPill
+                  label={copy.progress.avgWeeklyRate}
+                  value={`${averageWeeklyChange > 0 ? '+' : ''}${formatAmountWithUnit(averageWeeklyChange, 'kg', language, 2)}`}
+                  tone={averageWeeklyChange > 0 ? (profile.mode === 'bulk' ? 'good' : 'warn') : averageWeeklyChange < 0 ? (profile.mode === 'bulk' ? 'warn' : 'good') : 'neutral'}
+                />
+              </div>
+
+              <ResponsiveContainer width="100%" height={190}>
+                <LineChart data={weightChartData}>
                   <CartesianGrid strokeDasharray="3 3" stroke="#EFE4D2" />
-                  <XAxis dataKey="date" tick={{ fontSize: 10, fill: '#8F7F90' }} tickLine={false} />
+                  <XAxis dataKey="label" tick={{ fontSize: 10, fill: '#8F7F90' }} tickLine={false} />
                   <YAxis
                     domain={['auto', 'auto']}
                     tick={{ fontSize: 10, fill: '#8F7F90' }}
                     tickLine={false}
                     width={32}
                   />
+                  <Legend wrapperStyle={{ fontSize: 11, paddingTop: 8 }} />
                   <Tooltip
                     contentStyle={{ borderRadius: 12, border: '1px solid #EFE4D2', fontSize: 12 }}
-                    formatter={(val: number) => [formatAmountWithUnit(val, 'kg', language, 1), copy.common.weight]}
+                    formatter={(val: number, key: string) => [formatAmountWithUnit(val, 'kg', language, 1), key === 'weeklyAverage' ? copy.progress.weeklyAverage : key === 'movingAverage' ? copy.progress.shortTrend : copy.progress.dailyEntries]}
+                    labelFormatter={(_, payload: any) => payload?.[0]?.payload?.label ?? ''}
                   />
                   <Line
                     type="monotone"
@@ -206,16 +329,58 @@ export default function Progress() {
                     strokeWidth={2.5}
                     dot={{ fill: '#8FA989', r: 3 }}
                     activeDot={{ r: 5 }}
+                    name={copy.progress.dailyEntries}
+                  />
+                  <Line
+                    type="monotone"
+                    dataKey="weeklyAverage"
+                    stroke="#E8876A"
+                    strokeWidth={2.5}
+                    dot={false}
+                    strokeDasharray="5 4"
+                    name={copy.progress.weeklyAverage}
+                  />
+                  <Line
+                    type="monotone"
+                    dataKey="movingAverage"
+                    stroke="#3F5D3C"
+                    strokeWidth={1.8}
+                    dot={false}
+                    name={copy.progress.shortTrend}
                   />
                 </LineChart>
               </ResponsiveContainer>
-              <p className="text-xs text-ink-60 mt-2">
-                {weightChange > 0 ? '↑' : '↓'}{' '}
-                <span className={`font-semibold ${weightChange > 0 ? (profile.mode === 'bulk' ? 'text-moss' : 'text-terracotta') : (profile.mode === 'bulk' ? 'text-terracotta' : 'text-moss')}`}>
-                  {formatAmountWithUnit(Math.abs(weightChange), 'kg', language, 1)}
-                </span>
-                {' '}{copy.progress.thisPeriod(copy.progress.periods[period])}
-              </p>
+
+              <div className="mt-4 rounded-2xl bg-sand/35 p-3 space-y-2" data-testid="weight-analysis-summary">
+                <p className="text-xs text-ink-60">
+                  {copy.progress.rangeSummary(
+                    formatAmountWithUnit(minWeight, 'kg', language, 1),
+                    formatAmountWithUnit(maxWeight, 'kg', language, 1),
+                    entryCount
+                  )}
+                </p>
+                <p className="text-xs text-ink-60">
+                  {copy.progress.goalProgress(progressTowardGoal)}
+                </p>
+                <p className="text-xs text-ink-60">
+                  {copy.progress.trendVsScale(
+                    formatAmountWithUnit(recentMovingAverage, 'kg', language, 1),
+                    copy.progress.periods[period]
+                  )}
+                </p>
+              </div>
+
+              <div className="mt-3" data-testid="weight-history-list">
+                <h3 className="text-xs font-semibold text-ink-40 uppercase tracking-wide mb-2">{copy.progress.recentEntries}</h3>
+                <div className="space-y-1.5">
+                  {recentEntries.map((entry) => (
+                    <div key={entry.date} className="flex items-center justify-between rounded-xl border border-sand bg-cream-bg px-3 py-2">
+                      <span className="text-xs text-ink-60">{formatShortDate(new Date(entry.date), language)}</span>
+                      <span className="text-sm font-semibold text-plum-dark font-mono-num">{formatAmountWithUnit(entry.kg, 'kg', language, 1)}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
             </>
           ) : (
             <p className="text-sm text-ink-40 text-center py-6">{copy.progress.logWeightPrompt}</p>
@@ -360,9 +525,9 @@ export default function Progress() {
               </div>
 
               {/* Weight progress */}
-              {filteredWeight.length >= 2 && (
+              {filteredWeightHistory.length >= 2 && (
                 <div className="bg-sand/50 rounded-xl p-3">
-                   <p className="text-xs font-medium text-plum-dark">{copy.common.weight}: {formatAmountWithUnit(filteredWeight[filteredWeight.length - 1].weight, 'kg', language, 1)}</p>
+                   <p className="text-xs font-medium text-plum-dark">{copy.common.weight}: {formatAmountWithUnit(latestWeight, 'kg', language, 1)}</p>
                    <p className="text-xs text-ink-60 mt-0.5">
                      {weightChange > 0 ? '↑' : '↓'} {formatAmountWithUnit(Math.abs(weightChange), 'kg', language, 1)} {copy.progress.thisPeriod(copy.progress.periods[period])}
                      {profile.mode === 'bulk' && weightChange > 0 && ` (${copy.progress.onTrack} 💪)`}
@@ -448,6 +613,29 @@ export default function Progress() {
           </div>
         )}
       </div>
+    </div>
+  );
+}
+
+function MetricPill({
+  label,
+  value,
+  tone,
+}: {
+  label: string;
+  value: string;
+  tone: 'neutral' | 'good' | 'warn';
+}) {
+  const toneClass = tone === 'good'
+    ? 'bg-moss/10 text-moss border-moss/15'
+    : tone === 'warn'
+    ? 'bg-terracotta/10 text-terracotta border-terracotta/15'
+    : 'bg-sand/35 text-plum-dark border-sand';
+
+  return (
+    <div className={`rounded-2xl border px-3 py-3 ${toneClass}`}>
+      <p className="text-[11px] uppercase tracking-wide opacity-75">{label}</p>
+      <p className="mt-1 text-sm font-semibold font-mono-num">{value}</p>
     </div>
   );
 }
