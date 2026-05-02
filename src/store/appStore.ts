@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
+import { deriveGoalWeight } from '../lib/targetComputation';
 
 export type Phase = 'menstrual' | 'follicular' | 'ovulatory' | 'luteal';
 
@@ -538,7 +539,7 @@ export const useAppStore = create<AppState>()(
             p.id === profileId
               ? {
                   ...p,
-                  demographics: { ...p.demographics, weight_kg: kg },
+                  demographics: { ...p.demographics, weight_kg: kg, goal_weight_kg: deriveGoalWeight(p, kg) },
                   weightHistory: [
                     ...p.weightHistory,
                     { date: new Date().toISOString().split('T')[0], kg },

@@ -4,7 +4,7 @@ import { useNavigate } from 'react-router-dom';
 import { ArrowLeft, ChevronRight, Plus, User, Trash2, X, Download, Upload, Info } from 'lucide-react';
 import { useAppStore, selectActiveProfile } from '../store/appStore';
 import type { Profile, Targets } from '../store/appStore';
-import { computePCOSTargets, computeBulkTargets, computeMaintainTargets } from '../lib/targetComputation';
+import { computePCOSTargets, computeBulkTargets, computeMaintainTargets, deriveGoalWeight } from '../lib/targetComputation';
 import { getCurrentPhase } from '../lib/cyclePhase';
 import { sumNutrients } from '../lib/gapAnalysis';
 import { getSuggestions } from '../lib/suggestionEngine';
@@ -236,7 +236,13 @@ export default function Profile() {
       field === 'weight_kg' || field === 'goal_weight_kg'
         ? Math.round(clamped * 10) / 10
         : Math.round(clamped);
-    updateProfile(profile.id, { demographics: { ...profile.demographics, [field]: final } });
+    updateProfile(profile.id, {
+      demographics: {
+        ...profile.demographics,
+        [field]: final,
+        ...(field === 'weight_kg' ? { goal_weight_kg: deriveGoalWeight(profile, final) } : {}),
+      },
+    });
     setShowGoalHint(true);
     if (goalHintTimerRef.current) clearTimeout(goalHintTimerRef.current);
     goalHintTimerRef.current = setTimeout(() => setShowGoalHint(false), 5000);

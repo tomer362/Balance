@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Settings, ChevronRight, X } from 'lucide-react';
+import { Settings, ChevronRight, X, Scale } from 'lucide-react';
 import { useAppStore, selectActiveProfile, selectTodayMeals } from '../store/appStore';
 import type { LoggedMeal, Phase } from '../store/appStore';
 import BalanceWheel from '../components/BalanceWheel';
@@ -46,6 +46,7 @@ export default function Dashboard() {
   const updateMeal = useAppStore((s) => s.updateMeal);
 
   const [editingMeal, setEditingMeal] = useState<LoggedMeal | null>(null);
+  const [showWeightSheet, setShowWeightSheet] = useState(false);
 
   if (!profile) return null;
 
@@ -139,6 +140,24 @@ export default function Dashboard() {
           </>
         )}
       </div>
+
+      <button
+        onClick={() => setShowWeightSheet(true)}
+        data-testid="dashboard-weight-update"
+        className="mx-5 mt-3 w-[calc(100%-2.5rem)] bg-cream-card rounded-2xl border border-sand/60 px-4 py-3 flex items-center gap-3 text-left shadow-sm"
+      >
+        <div className="w-9 h-9 rounded-full bg-sage-primary/15 flex items-center justify-center text-sage-deep">
+          <Scale size={17} />
+        </div>
+        <div className="flex-1 min-w-0">
+          <p className="text-xs font-semibold text-ink-40 uppercase tracking-wide">Weight check-in</p>
+          <p className="text-sm text-plum-dark">
+            {profile.demographics.weight_kg} kg
+            <span className="text-ink-40"> → {profile.demographics.goal_weight_kg} kg goal</span>
+          </p>
+        </div>
+        <ChevronRight size={16} className="text-ink-40" />
+      </button>
 
       {/* Today's meals */}
       <div className="px-5 mt-5">
@@ -236,7 +255,82 @@ export default function Dashboard() {
           onClose={() => setEditingMeal(null)}
         />
       )}
+
+      {showWeightSheet && (
+        <WeightUpdateSheet
+          profileId={profile.id}
+          currentWeight={profile.demographics.weight_kg}
+          goalWeight={profile.demographics.goal_weight_kg}
+          onClose={() => setShowWeightSheet(false)}
+        />
+      )}
     </>
+  );
+}
+
+function WeightUpdateSheet({
+  profileId,
+  currentWeight,
+  goalWeight,
+  onClose,
+}: {
+  profileId: string;
+  currentWeight: number;
+  goalWeight: number;
+  onClose: () => void;
+}) {
+  const logWeight = useAppStore((s) => s.logWeight);
+  const [weightText, setWeightText] = useState(String(currentWeight));
+  const parsed = Number(weightText);
+  const canSave = Number.isFinite(parsed) && parsed >= 20 && parsed <= 300;
+
+  function save() {
+    if (!canSave) return;
+    logWeight(profileId, Math.round(parsed * 10) / 10);
+    onClose();
+  }
+
+  return (
+    <BottomSheet onClose={onClose}>
+      <div className="p-5 pb-safe space-y-4" data-testid="weight-update-sheet">
+        <div className="flex items-center justify-between">
+          <h3 className="font-semibold text-plum-dark">Update weight</h3>
+          <button onClick={onClose} className="tap-target flex items-center justify-center">
+            <X size={20} className="text-ink-40" />
+          </button>
+        </div>
+
+        <div>
+          <label className="text-xs text-ink-40 block mb-1.5">Current weight (kg)</label>
+          <input
+            autoFocus
+            type="number"
+            inputMode="decimal"
+            min="20"
+            max="300"
+            step="0.1"
+            value={weightText}
+            onChange={(e) => setWeightText(e.target.value)}
+            className="w-full px-4 py-3 rounded-xl border border-sand bg-cream-card text-plum-dark text-center font-mono-num focus:outline-none focus:border-sage-primary"
+            data-testid="dashboard-weight-input"
+          />
+          <p className="text-xs text-ink-40 mt-2 text-center">
+            Current goal: {goalWeight} kg. Goal updates automatically for your mode.
+          </p>
+        </div>
+
+        <button
+          onClick={save}
+          disabled={!canSave}
+          className={`w-full py-3.5 rounded-2xl font-semibold ${
+            canSave ? 'bg-sage-deep text-white' : 'bg-sand text-ink-40'
+          }`}
+          data-testid="dashboard-weight-save"
+        >
+          Save weight
+        </button>
+      </div>
+    </BottomSheet>
   );
 }
 

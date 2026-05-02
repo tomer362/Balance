@@ -133,3 +133,21 @@ export function computeMaintainTargets(profile: Profile): Targets {
     tdee,
   };
 }
+
+export function deriveGoalWeight(profile: Profile, currentKg: number): number {
+  const kg = currentKg > 0 ? currentKg : profile.demographics.weight_kg;
+  const rounded = (value: number) => Math.round(value * 10) / 10;
+
+  if (profile.mode === 'bulk') {
+    return rounded(kg + 6);
+  }
+
+  if (profile.mode === 'pcos') {
+    const goal = profile.pcos?.goal ?? 'lose_weight';
+    return goal === 'manage_symptoms'
+      ? rounded(kg)
+      : rounded(Math.max(50, kg - 8));
+  }
+
+  return rounded(kg);
+}
