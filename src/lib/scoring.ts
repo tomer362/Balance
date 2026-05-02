@@ -116,9 +116,11 @@ export function cyclePhaseBonus(nutrition: NutritionData, phase: Phase): number 
 
     case 'luteal':
       // Complex carbs, magnesium (high fiber, moderate sugar), reduce bloating
-      const gl = nutrition.glycemic_load ?? 15;
-      if (nutrition.fiber_g > 5 && gl < 15) return 0.6;
-      if (gl < 20 && nutrition.protein_g > 15) return 0.3;
+      {
+        const gl = nutrition.glycemic_load ?? 15;
+        if (nutrition.fiber_g > 5 && gl < 15) return 0.6;
+        if (gl < 20 && nutrition.protein_g > 15) return 0.3;
+      }
       return 0;
 
     default:

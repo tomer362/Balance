@@ -1,4 +1,3 @@
-import { useEffect, useRef } from 'react';
 import type { Profile } from '../store/appStore';
 import { sumNutrients } from '../lib/gapAnalysis';
 
@@ -29,11 +28,10 @@ interface RingProps {
   pct: number;
   color: string;
   trackColor?: string;
-  animate?: boolean;
   id: string;
 }
 
-function Ring({ cx, cy, r, strokeWidth, pct, color, trackColor = '#EFE4D2', animate = true, id }: RingProps) {
+function Ring({ cx, cy, r, strokeWidth, pct, color, trackColor = '#EFE4D2', id }: RingProps) {
   const clampedPct = Math.min(pct, 1.2); // allow up to 120%
   const endDeg = clampedPct * 360;
   const shouldPulse = pct < 0.7 && pct > 0;

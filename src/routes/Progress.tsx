@@ -4,7 +4,7 @@ import { ArrowLeft, Plus } from 'lucide-react';
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from 'recharts';
 import { useAppStore, selectActiveProfile } from '../store/appStore';
 import { getCurrentPhase, getPhaseColor, getPhaseName, getPhaseNutritionBrief } from '../lib/cyclePhase';
-import { analyzeGaps, sumNutrients } from '../lib/gapAnalysis';
+import { sumNutrients } from '../lib/gapAnalysis';
 
 type Period = 'week' | 'month' | '3m' | 'year';
 
@@ -44,7 +44,6 @@ export default function Progress() {
 
   const phaseInfo = profile.mode === 'pcos' ? getCurrentPhase(profile) : null;
   const today = new Date().toISOString().split('T')[0];
-  const todayMeals = profile.foodLog.filter((m) => m.timestamp.startsWith(today));
   const last28Meals = profile.foodLog.filter((m) => {
     const d = new Date(m.timestamp);
     const cutoff = new Date();
@@ -233,7 +232,6 @@ export default function Progress() {
               <svg width={220} height={220} viewBox="0 0 220 220">
                 {/* Phase arcs */}
                 {PHASE_ZONES.map(({ phase, startFrac, endFrac, color }) => {
-                  const clampedLength = Math.min(cycleLength, 38);
                   const startDeg = startFrac * 360;
                   const endDeg = endFrac * 360;
                   return (

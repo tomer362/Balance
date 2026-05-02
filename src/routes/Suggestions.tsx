@@ -42,7 +42,7 @@ export default function Suggestions() {
     const score = scoreFood(meal.nutrition, 300, profile.mode, phaseInfo?.phase);
     const now = new Date();
     const logged: LoggedMeal = {
-      id: `sug-${Date.now()}`,
+      id: `sug-${now.getTime()}`,
       timestamp: now.toISOString(),
       meal_type: now.getHours() < 10 ? 'breakfast' : now.getHours() < 14 ? 'lunch' : now.getHours() < 17 ? 'snack' : 'dinner',
       name: meal.name,

@@ -256,7 +256,7 @@ export default function Profile() {
     setDraftHeight(String(profile.demographics.height_cm));
     setDraftWeight(String(profile.demographics.weight_kg));
     setDraftGoalWeight(String(profile.demographics.goal_weight_kg));
-  }, [profile?.id]);
+  }, [profile]);
 
   if (!profile) return null;
 

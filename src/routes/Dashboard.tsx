@@ -45,7 +45,6 @@ export default function Dashboard() {
   const profile = useAppStore(selectActiveProfile);
   const todayMeals = useAppStore(selectTodayMeals);
   const removeMeal = useAppStore((s) => s.removeMeal);
-  const updateMeal = useAppStore((s) => s.updateMeal);
 
   const [editingMeal, setEditingMeal] = useState<LoggedMeal | null>(null);
   const [showWeightSheet, setShowWeightSheet] = useState(false);
@@ -68,10 +67,6 @@ export default function Dashboard() {
   const isTraining = isTrainingDay(profile);
   const todaySplit = getTodaySplit(profile);
   const phaseInfo = profile.mode === 'pcos' ? getCurrentPhase(profile) : null;
-
-  const calTarget = profile.mode === 'pcos'
-    ? (targets.calories + (phaseInfo ? (phaseInfo.phase === 'luteal' ? 150 : phaseInfo.phase === 'ovulatory' ? -50 : 0) : 0))
-    : (isTraining ? (targets.calories_training_day ?? targets.calories) : (targets.calories_rest_day ?? targets.calories));
 
   return (
     <>
