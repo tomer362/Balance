@@ -52,7 +52,6 @@ export interface Ingredient {
   tags: string[];
 }
 
-const curatedIngredientDatabase: Ingredient[] = [
 const ingredientMicronutrientMap = ingredientMicronutrients as Record<string, MicronutrientData>;
 
 const curatedIngredientDatabase: Ingredient[] = [
