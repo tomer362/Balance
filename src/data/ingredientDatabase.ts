@@ -1,3 +1,5 @@
+import usdaFoundationIngredientRows from './usdaFoundationIngredients.json';
+
 /**
  * Israeli-diet ingredient database.
  * All nutrition values are per 100 g (raw/uncooked unless noted).
@@ -46,7 +48,7 @@ export interface Ingredient {
   tags: string[];
 }
 
-export const ingredientDatabase: Ingredient[] = [
+const curatedIngredientDatabase: Ingredient[] = [
   // ─── PROTEINS ───────────────────────────────────────────────────────────────
   {
     id: 'chicken-breast',
@@ -860,6 +862,11 @@ export const ingredientDatabase: Ingredient[] = [
     common_serving_g: 150, common_serving_label: '150 g',
     tags: ['plant-protein', 'vegan', 'soy'],
   },
+];
+
+export const ingredientDatabase: Ingredient[] = [
+  ...curatedIngredientDatabase,
+  ...(usdaFoundationIngredientRows as unknown as Ingredient[]),
 ];
 
 /** Fast substring search across name, nameHe, tags and category. */
