@@ -6,12 +6,14 @@ import type { LoggedMeal, Phase } from '../store/appStore';
 import BalanceWheel from '../components/BalanceWheel';
 import MealCard from '../components/MealCard';
 import ScoreBadge from '../components/ScoreBadge';
+import NutritionDetailSheet from '../components/NutritionDetailSheet';
 import { sumNutrients } from '../lib/gapAnalysis';
 import { getSuggestions } from '../lib/suggestionEngine';
 import { getCurrentPhase, getPhaseName, getPhaseColor } from '../lib/cyclePhase';
 import { scoreFood } from '../lib/scoring';
 import BottomSheet from '../components/BottomSheet';
 import { computePCOSTargets, computeBulkTargets, computeMaintainTargets } from '../lib/targetComputation';
+import { countMicronutrients, hasMicronutrientData, scaleNutrition } from '../lib/nutrition';
 
 function greetingByHour(): string {
   const h = new Date().getHours();
@@ -47,6 +49,7 @@ export default function Dashboard() {
 
   const [editingMeal, setEditingMeal] = useState<LoggedMeal | null>(null);
   const [showWeightSheet, setShowWeightSheet] = useState(false);
+  const [nutritionMeal, setNutritionMeal] = useState<LoggedMeal | null>(null);
 
   if (!profile) return null;
 
@@ -180,6 +183,7 @@ export default function Dashboard() {
                 <MealCard
                   key={meal.id}
                   meal={meal}
+                  onViewNutrition={() => setNutritionMeal(meal)}
                   onDelete={() => removeMeal(profile.id, meal.id)}
                   onEdit={() => setEditingMeal(meal)}
                 />
@@ -262,6 +266,19 @@ export default function Dashboard() {
           currentWeight={profile.demographics.weight_kg}
           goalWeight={profile.demographics.goal_weight_kg}
           onClose={() => setShowWeightSheet(false)}
+        />
+      )}
+
+      {nutritionMeal && (
+        <NutritionDetailSheet
+          title={nutritionMeal.name}
+          subtitle={hasMicronutrientData(nutritionMeal.nutrition.micronutrients)
+            ? `${countMicronutrients(nutritionMeal.nutrition.micronutrients)} micronutrients logged`
+            : 'Micronutrients were not available for this meal'}
+          nutritionPer100g={scaleNutrition(nutritionMeal.nutrition, 100 / nutritionMeal.serving_g)}
+          servingG={nutritionMeal.serving_g}
+          servingLabel={`${nutritionMeal.serving_g} g`}
+          onClose={() => setNutritionMeal(null)}
         />
       )}
     </>
@@ -363,19 +380,7 @@ function EditMealSheet({
   const scale = newServing / meal.serving_g;
 
   function save() {
-    const scaledNutrition = {
-      calories: Math.round(meal.nutrition.calories * scale),
-      protein_g: Math.round(meal.nutrition.protein_g * scale * 10) / 10,
-      carbs_g: Math.round(meal.nutrition.carbs_g * scale * 10) / 10,
-      fiber_g: Math.round(meal.nutrition.fiber_g * scale * 10) / 10,
-      sugar_g: Math.round(meal.nutrition.sugar_g * scale * 10) / 10,
-      fat_g: Math.round(meal.nutrition.fat_g * scale * 10) / 10,
-      saturated_fat_g: Math.round(meal.nutrition.saturated_fat_g * scale * 10) / 10,
-      sodium_mg: Math.round(meal.nutrition.sodium_mg * scale),
-      omega3_g: meal.nutrition.omega3_g !== undefined
-        ? Math.round(meal.nutrition.omega3_g * scale * 100) / 100
-        : undefined,
-    };
+    const scaledNutrition = scaleNutrition(meal.nutrition, scale);
     const newScore = scoreFood(scaledNutrition, newServing, mode, phase);
     updateMeal(profileId, meal.id, {
       name: name.trim() || meal.name,

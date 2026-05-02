@@ -4,6 +4,18 @@ import { deriveGoalWeight } from '../lib/targetComputation';
 
 export type Phase = 'menstrual' | 'follicular' | 'ovulatory' | 'luteal';
 
+export interface MicronutrientData {
+  iron_mg?: number;
+  calcium_mg?: number;
+  magnesium_mg?: number;
+  potassium_mg?: number;
+  zinc_mg?: number;
+  vitamin_d_mcg?: number;
+  vitamin_b12_mcg?: number;
+  folate_mcg?: number;
+  vitamin_c_mg?: number;
+}
+
 export interface NutritionData {
   calories: number;
   protein_g: number;
@@ -16,6 +28,7 @@ export interface NutritionData {
   glycemic_index?: number;
   glycemic_load?: number;
   omega3_g?: number;
+  micronutrients?: MicronutrientData;
   ingredients?: string[];
 }
 
@@ -463,6 +476,39 @@ const defaultProfiles: Profile[] = [
   },
 ];
 
+export function migratePersistedAppState(persistedState: unknown, version: number): Partial<AppState> {
+  const s = persistedState as Partial<AppState>;
+
+  if (version === 1) {
+    return { ...s, hasOnboarded: true };
+  }
+
+  if (version <= 3 && s.profiles) {
+    return {
+      ...s,
+      profiles: s.profiles.map((profile) => ({
+        ...profile,
+        foodLog: profile.foodLog.map((meal) => ({
+          ...meal,
+          nutrition: {
+            ...meal.nutrition,
+            micronutrients: meal.nutrition.micronutrients ?? undefined,
+          },
+        })),
+        customRecipes: profile.customRecipes.map((meal) => ({
+          ...meal,
+          nutrition: {
+            ...meal.nutrition,
+            micronutrients: meal.nutrition.micronutrients ?? undefined,
+          },
+        })),
+      })),
+    } satisfies Partial<AppState>;
+  }
+
+  return s;
+}
+
 export const useAppStore = create<AppState>()(
   persist(
     (set) => ({
@@ -564,17 +610,11 @@ export const useAppStore = create<AppState>()(
     }),
     {
       name: 'balance-storage',
-      version: 3,
+      version: 4,
       // Migrate v1 → v2: existing users keep their data and skip onboarding
       // Migrate v2 → v3: add pcos.goal (optional, default undefined = no migration needed)
-      migrate: (persistedState: unknown, version: number) => {
-        const s = persistedState as Partial<AppState>;
-        if (version === 1) {
-          return { ...s, hasOnboarded: true };
-        }
-        // v2 → v3: pcos.goal field is optional, no structural migration required
-        return s;
-      },
+      // Migrate v3 → v4: hydrate missing micronutrient containers on persisted nutrition objects
+      migrate: migratePersistedAppState,
     }
   )
 );

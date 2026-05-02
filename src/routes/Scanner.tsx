@@ -1,12 +1,14 @@
 import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { X, Zap, ZapOff, FlipHorizontal, Check } from 'lucide-react';
+import { X, Zap, ZapOff, FlipHorizontal, Check, Info } from 'lucide-react';
 import { Html5Qrcode } from 'html5-qrcode';
 import { useAppStore, selectActiveProfile } from '../store/appStore';
 import type { NutritionData, LoggedMeal } from '../store/appStore';
 import { scoreFood } from '../lib/scoring';
 import { getCurrentPhase } from '../lib/cyclePhase';
 import { fetchByBarcode } from '../lib/openFoodFacts';
+import NutritionDetailSheet from '../components/NutritionDetailSheet';
+import { countMicronutrients, hasMicronutrientData, normalizeNutrition, scaleNutrition, sumNutrition } from '../lib/nutrition';
 
 type ScanMode = 'barcode' | 'photo' | 'manual';
 type MealType = LoggedMeal['meal_type'];
@@ -51,6 +53,7 @@ export default function Scanner() {
   const [logged, setLogged] = useState(false);
   const [flashOn, setFlashOn] = useState(false);
   const [hasMultipleCameras, setHasMultipleCameras] = useState(false);
+  const [showNutritionSheet, setShowNutritionSheet] = useState(false);
 
   const scannerRef = useRef<Html5Qrcode | null>(null);
   const camerasRef = useRef<CameraDevice[]>([]);
@@ -202,6 +205,7 @@ export default function Scanner() {
     const result = await fetchByBarcode(barcode);
     setLoading(false);
     if (result) {
+      setShowNutritionSheet(false);
       setProduct(result);
     } else {
       setError(`Product not found for barcode ${barcode}. Try manual entry.`);
@@ -211,21 +215,13 @@ export default function Scanner() {
 
   function handleLogMeal() {
     if (!profile || !product) return;
-    const factor = servingG / 100;
-    const nutrition: NutritionData = {
-      calories: Math.round(product.nutrition.calories * factor),
-      protein_g: Math.round(product.nutrition.protein_g * factor * 10) / 10,
-      carbs_g: Math.round(product.nutrition.carbs_g * factor * 10) / 10,
-      fiber_g: Math.round(product.nutrition.fiber_g * factor * 10) / 10,
-      sugar_g: Math.round(product.nutrition.sugar_g * factor * 10) / 10,
-      fat_g: Math.round(product.nutrition.fat_g * factor * 10) / 10,
-      saturated_fat_g: Math.round(product.nutrition.saturated_fat_g * factor * 10) / 10,
-      sodium_mg: Math.round(product.nutrition.sodium_mg * factor),
-      glycemic_index: product.nutrition.glycemic_index,
-      glycemic_load: product.nutrition.glycemic_load ? Math.round(product.nutrition.glycemic_load * factor) : undefined,
-      omega3_g: product.nutrition.omega3_g ? Math.round(product.nutrition.omega3_g * factor * 10) / 10 : undefined,
-      ingredients: product.ingredients,
-    };
+    const nutrition = scaleNutrition(
+      {
+        ...product.nutrition,
+        ingredients: product.ingredients,
+      },
+      servingG / 100,
+    );
 
     const phaseInfo = profile.mode === 'pcos' ? getCurrentPhase(profile) : null;
     const score = scoreFood(nutrition, servingG, profile.mode, phaseInfo?.phase);
@@ -274,11 +270,16 @@ export default function Scanner() {
 
   // Product result screen
   if (product) {
-    const factor = servingG / 100;
-    const kcal = Math.round(product.nutrition.calories * factor);
+    const servingNutrition = scaleNutrition(
+      {
+        ...product.nutrition,
+        ingredients: product.ingredients,
+      },
+      servingG / 100,
+    );
     const phaseInfo = profile?.mode === 'pcos' ? getCurrentPhase(profile!) : null;
     const score = profile ? scoreFood(
-      { ...product.nutrition, calories: kcal },
+      servingNutrition,
       servingG,
       profile.mode,
       phaseInfo?.phase
@@ -288,7 +289,13 @@ export default function Scanner() {
       <div className="min-h-screen bg-cream-bg overflow-y-auto pb-8">
         <div className="sticky top-0 z-10 bg-cream-bg px-4 py-3 flex items-center gap-3 border-b border-sand pt-safe">
           {/* Back just clears product – the useEffect will restart the scanner */}
-          <button onClick={() => setProduct(null)} className="tap-target p-2 rounded-full hover:bg-sand">
+          <button
+            onClick={() => {
+              setShowNutritionSheet(false);
+              setProduct(null);
+            }}
+            className="tap-target p-2 rounded-full hover:bg-sand"
+          >
             <X size={20} className="text-plum-dark" />
           </button>
           <h1 className="font-semibold text-plum-dark">Scan result</h1>
@@ -322,15 +329,33 @@ export default function Scanner() {
 
           {/* Nutrition */}
           <div className="bg-cream-card rounded-2xl p-4 border border-sand">
-            <h3 className="text-sm font-semibold text-plum-dark mb-3">Nutrition per {servingG}g</h3>
+            <div className="flex items-start justify-between gap-3 mb-3">
+              <div>
+                <h3 className="text-sm font-semibold text-plum-dark">Nutrition per {servingG}g</h3>
+                <p className="text-xs text-ink-40 mt-1">
+                  {hasMicronutrientData(product.nutrition.micronutrients)
+                    ? `${countMicronutrients(product.nutrition.micronutrients)} micronutrients available`
+                    : 'Micronutrients unavailable in this product source'}
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowNutritionSheet(true)}
+                className="flex items-center gap-1 text-xs font-medium text-sage-deep"
+                data-testid="scanner-nutrition-detail-btn"
+              >
+                <Info size={14} />
+                Full nutrition
+              </button>
+            </div>
             <div className="grid grid-cols-2 gap-y-2 gap-x-4 text-sm">
               {[
-                { label: 'Calories', val: `${kcal} kcal` },
-                { label: 'Protein', val: `${(product.nutrition.protein_g * factor).toFixed(1)}g` },
-                { label: 'Carbs', val: `${(product.nutrition.carbs_g * factor).toFixed(1)}g` },
-                { label: 'Fiber', val: `${(product.nutrition.fiber_g * factor).toFixed(1)}g` },
-                { label: 'Fat', val: `${(product.nutrition.fat_g * factor).toFixed(1)}g` },
-                { label: 'Sugar', val: `${(product.nutrition.sugar_g * factor).toFixed(1)}g` },
+                { label: 'Calories', val: `${servingNutrition.calories} kcal` },
+                { label: 'Protein', val: `${servingNutrition.protein_g.toFixed(1)}g` },
+                { label: 'Carbs', val: `${servingNutrition.carbs_g.toFixed(1)}g` },
+                { label: 'Fiber', val: `${servingNutrition.fiber_g.toFixed(1)}g` },
+                { label: 'Fat', val: `${servingNutrition.fat_g.toFixed(1)}g` },
+                { label: 'Sugar', val: `${servingNutrition.sugar_g.toFixed(1)}g` },
               ].map(({ label, val }) => (
                 <div key={label} className="flex justify-between">
                   <span className="text-ink-60">{label}</span>
@@ -378,6 +403,22 @@ export default function Scanner() {
             Log This Meal
           </button>
         </div>
+
+        {showNutritionSheet && (
+          <NutritionDetailSheet
+            title={product.name}
+            subtitle={hasMicronutrientData(product.nutrition.micronutrients)
+              ? 'Micronutrients from product data'
+              : 'Micronutrients unavailable in this product source'}
+            nutritionPer100g={{
+              ...product.nutrition,
+              ingredients: product.ingredients,
+            }}
+            servingG={servingG}
+            servingLabel={`${servingG} g`}
+            onClose={() => setShowNutritionSheet(false)}
+          />
+        )}
       </div>
     );
   }
@@ -468,19 +509,12 @@ export default function Scanner() {
             {selectedIngredients.length > 0 && (
               <button
                 onClick={() => {
-                  const combined = QUICK_INGREDIENTS
-                    .filter((i) => selectedIngredients.includes(i.label))
-                    .reduce((acc, i) => ({
-                      ...acc,
-                      calories: acc.calories + i.nutrition.calories,
-                      protein_g: acc.protein_g + i.nutrition.protein_g,
-                      carbs_g: acc.carbs_g + i.nutrition.carbs_g,
-                      fiber_g: acc.fiber_g + i.nutrition.fiber_g,
-                      sugar_g: acc.sugar_g + i.nutrition.sugar_g,
-                      fat_g: acc.fat_g + i.nutrition.fat_g,
-                      saturated_fat_g: acc.saturated_fat_g + i.nutrition.saturated_fat_g,
-                      sodium_mg: acc.sodium_mg + i.nutrition.sodium_mg,
-                    }), { calories: 0, protein_g: 0, carbs_g: 0, fiber_g: 0, sugar_g: 0, fat_g: 0, saturated_fat_g: 0, sodium_mg: 0 });
+                  const combined = sumNutrition(
+                    QUICK_INGREDIENTS
+                      .filter((i) => selectedIngredients.includes(i.label))
+                      .map((i) => normalizeNutrition(i.nutrition))
+                  );
+                  setShowNutritionSheet(false);
                   setProduct({ name: selectedIngredients.join(' + '), nutrition: combined as NutritionData });
                 }}
                 className="mt-6 w-full bg-coral-accent text-white py-3 rounded-2xl font-semibold"
@@ -549,6 +583,7 @@ export default function Scanner() {
           ))}
         </div>
       </div>
+
     </div>
   );
 }

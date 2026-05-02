@@ -31,6 +31,43 @@ FIELD_ALIASES = {
     "fat_g": ["fat_g", "fat", "total fat", "fat (g)"],
     "saturated_fat_g": ["saturated_fat_g", "saturated fat", "sat fat", "saturated fat (g)"],
     "sodium_mg": ["sodium_mg", "sodium", "sodium (mg)"],
+    "glycemic_index": ["glycemic_index", "gi"],
+    "glycemic_load": ["glycemic_load", "gl"],
+    "omega3_g": ["omega3_g", "omega-3", "omega 3", "omega-3 (g)"],
+    "iron_mg": ["iron_mg", "iron", "iron (mg)"],
+    "calcium_mg": ["calcium_mg", "calcium", "calcium (mg)"],
+    "magnesium_mg": ["magnesium_mg", "magnesium", "magnesium (mg)"],
+    "potassium_mg": ["potassium_mg", "potassium", "potassium (mg)"],
+    "zinc_mg": ["zinc_mg", "zinc", "zinc (mg)"],
+    "vitamin_d_mcg": ["vitamin_d_mcg", "vitamin d", "vitamin d (mcg)"],
+    "vitamin_b12_mcg": ["vitamin_b12_mcg", "vitamin b12", "vitamin b12 (mcg)"],
+    "folate_mcg": ["folate_mcg", "folate", "folate (mcg)", "vitamin b9", "vitamin b9 (mcg)"],
+    "vitamin_c_mg": ["vitamin_c_mg", "vitamin c", "vitamin c (mg)"],
+    "ingredients": ["ingredients", "ingredient_list"],
+}
+
+MICRONUTRIENT_FIELDS = {
+    "iron_mg": "iron",
+    "calcium_mg": "calcium",
+    "magnesium_mg": "magnesium",
+    "potassium_mg": "potassium",
+    "zinc_mg": "zinc",
+    "vitamin_d_mcg": "vitamin_d",
+    "vitamin_b12_mcg": "vitamin_b12",
+    "folate_mcg": "folate",
+    "vitamin_c_mg": "vitamin_c",
+}
+
+MICRONUTRIENT_DECIMALS = {
+    "iron_mg": 1,
+    "calcium_mg": 0,
+    "magnesium_mg": 0,
+    "potassium_mg": 0,
+    "zinc_mg": 1,
+    "vitamin_d_mcg": 1,
+    "vitamin_b12_mcg": 1,
+    "folate_mcg": 0,
+    "vitamin_c_mg": 1,
 }
 
 
@@ -145,6 +182,39 @@ def normalize_row(row: dict[str, Any]) -> dict[str, Any] | None:
         "saturated_fat_g": round(nutrient(row, "saturated_fat_g", "saturated_fat"), 1),
         "sodium_mg": round(nutrient(row, "sodium_mg", "sodium")),
     }
+    glycemic_index = number(get_value(row, "glycemic_index"), None)
+    glycemic_load = number(get_value(row, "glycemic_load"), None)
+    omega3_g = number(get_value(row, "omega3_g"), None)
+
+    if glycemic_index is not None:
+        nutrition["glycemic_index"] = round(glycemic_index, 1)
+    if glycemic_load is not None:
+        nutrition["glycemic_load"] = round(glycemic_load, 1)
+    if omega3_g is not None:
+        nutrition["omega3_g"] = round(omega3_g, 2)
+
+    micronutrients: dict[str, float] = {}
+    for field, content_key in MICRONUTRIENT_FIELDS.items():
+        value = get_value(row, field)
+        if value in ("", None):
+            contents = nutritional_contents(row)
+            content_value = contents.get(content_key)
+            if content_value in ("", None):
+                continue
+            parsed = measured_value(content_value, 0)
+        else:
+            parsed = number(value, 0)
+
+        micronutrients[field] = round(parsed, MICRONUTRIENT_DECIMALS[field])
+
+    if micronutrients:
+        nutrition["micronutrients"] = micronutrients
+
+    ingredients_raw = get_value(row, "ingredients")
+    if isinstance(ingredients_raw, str) and ingredients_raw.strip():
+        nutrition["ingredients"] = [part.strip() for part in ingredients_raw.replace(";", ",").split(",") if part.strip()]
+    elif isinstance(ingredients_raw, list):
+        nutrition["ingredients"] = [str(part).strip() for part in ingredients_raw if str(part).strip()]
     serving_g = number(get_value(row, "serving_g"), 100)
 
     return {

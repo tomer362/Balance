@@ -4,13 +4,15 @@ import { ArrowLeft, Search, Plus, Check, ChevronRight, X, Minus, Barcode, Layers
 import { useAppStore, selectActiveProfile } from '../store/appStore';
 import type { LoggedMeal, MealItem, NutritionData } from '../store/appStore';
 import { allMeals } from '../data/allMeals';
-import { ingredientDatabase, searchIngredients, scaleIngredient } from '../data/ingredientDatabase';
+import { ingredientDatabase, ingredientToNutrition, searchIngredients, scaleIngredient } from '../data/ingredientDatabase';
 import type { Ingredient } from '../data/ingredientDatabase';
 import { searchFoodIsrael } from '../lib/openFoodFacts';
 import { scoreFood } from '../lib/scoring';
 import { getCurrentPhase } from '../lib/cyclePhase';
+import { countMicronutrients, formatCompactValue, hasMicronutrientData, scaleNutrition, sumNutrition } from '../lib/nutrition';
 import ScoreBadge from '../components/ScoreBadge';
 import BottomSheet from '../components/BottomSheet';
+import NutritionDetailSheet from '../components/NutritionDetailSheet';
 
 type TabKey = 'meals' | 'ingredients' | 'build';
 
@@ -25,36 +27,21 @@ function autoMealType(): LoggedMeal['meal_type'] {
 }
 
 function sumNutr(items: Array<{ nutrition: NutritionData; serving_g: number }>): NutritionData {
-  return items.reduce<NutritionData>(
-    (acc, { nutrition, serving_g }) => {
-      const s = serving_g / 100;
-      return {
-        calories: acc.calories + Math.round(nutrition.calories * s),
-        protein_g: acc.protein_g + nutrition.protein_g * s,
-        carbs_g: acc.carbs_g + nutrition.carbs_g * s,
-        fiber_g: acc.fiber_g + nutrition.fiber_g * s,
-        sugar_g: acc.sugar_g + nutrition.sugar_g * s,
-        fat_g: acc.fat_g + nutrition.fat_g * s,
-        saturated_fat_g: acc.saturated_fat_g + nutrition.saturated_fat_g * s,
-        sodium_mg: acc.sodium_mg + nutrition.sodium_mg * s,
-        omega3_g: (acc.omega3_g ?? 0) + ((nutrition.omega3_g ?? 0) * s),
-      };
-    },
-    { calories: 0, protein_g: 0, carbs_g: 0, fiber_g: 0, sugar_g: 0, fat_g: 0, saturated_fat_g: 0, sodium_mg: 0, omega3_g: 0 }
-  );
+  return sumNutrition(items.map(({ nutrition, serving_g }) => scaleNutrition(nutrition, serving_g / 100)));
 }
 
-function roundNutr(n: NutritionData): NutritionData {
-  return {
-    ...n,
-    protein_g: Math.round(n.protein_g * 10) / 10,
-    carbs_g: Math.round(n.carbs_g * 10) / 10,
-    fiber_g: Math.round(n.fiber_g * 10) / 10,
-    sugar_g: Math.round(n.sugar_g * 10) / 10,
-    fat_g: Math.round(n.fat_g * 10) / 10,
-    saturated_fat_g: Math.round(n.saturated_fat_g * 10) / 10,
-    omega3_g: n.omega3_g !== undefined ? Math.round(n.omega3_g * 100) / 100 : undefined,
-  };
+function nutritionSheetSubtitle(nutrition: NutritionData, suffix?: string): string {
+  if (hasMicronutrientData(nutrition.micronutrients)) {
+    return `${countMicronutrients(nutrition.micronutrients)} micronutrients available${suffix ? ` · ${suffix}` : ''}`;
+  }
+
+  return suffix
+    ? `Micronutrients not available for this item yet · ${suffix}`
+    : 'Micronutrients not available for this item yet';
+}
+
+function rowSummary(nutrition: NutritionData): string {
+  return `${nutrition.calories} kcal/100g · ${formatCompactValue(nutrition.protein_g)}g P · ${formatCompactValue(nutrition.carbs_g)}g C · ${formatCompactValue(nutrition.fat_g)}g F`;
 }
 
 // ─── serving picker component ────────────────────────────────────────────────
@@ -144,6 +131,14 @@ interface BuildItem {
   serving_g: number;
 }
 
+interface NutritionSheetState {
+  title: string;
+  subtitle?: string;
+  nutritionPer100g: NutritionData;
+  servingG?: number;
+  servingLabel?: string;
+}
+
 export default function Log() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
@@ -165,6 +160,7 @@ export default function Log() {
   const [offLoading, setOffLoading] = useState(false);
   const [pendingIngredient, setPendingIngredient] = useState<Ingredient | null>(null);
   const [pendingOff, setPendingOff] = useState<{ id: string; name: string; nutrition: NutritionData } | null>(null);
+  const [nutritionSheet, setNutritionSheet] = useState<NutritionSheetState | null>(null);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Build-a-meal state
@@ -203,17 +199,7 @@ export default function Log() {
     (ingredient: Ingredient, servingG: number) => {
       if (!profile) return;
       const scaled = scaleIngredient(ingredient, servingG);
-      const nutrition: NutritionData = {
-        calories: scaled.calories,
-        protein_g: scaled.protein_g,
-        carbs_g: scaled.carbs_g,
-        fiber_g: scaled.fiber_g,
-        sugar_g: scaled.sugar_g,
-        fat_g: scaled.fat_g,
-        saturated_fat_g: scaled.saturated_fat_g,
-        sodium_mg: scaled.sodium_mg,
-        omega3_g: scaled.omega3_g,
-      };
+      const nutrition = scaled;
       const score = scoreFood(nutrition, servingG, profile.mode, phaseInfo?.phase);
       const logged: LoggedMeal = {
         id: `log-${Date.now()}-${Math.random().toString(36).slice(2)}`,
@@ -235,17 +221,7 @@ export default function Log() {
   const logOff = useCallback(
     (item: { id: string; name: string; nutrition: NutritionData }, servingG: number) => {
       if (!profile) return;
-      const s = servingG / 100;
-      const nutrition: NutritionData = {
-        calories: Math.round(item.nutrition.calories * s),
-        protein_g: Math.round(item.nutrition.protein_g * s * 10) / 10,
-        carbs_g: Math.round(item.nutrition.carbs_g * s * 10) / 10,
-        fiber_g: Math.round(item.nutrition.fiber_g * s * 10) / 10,
-        sugar_g: Math.round(item.nutrition.sugar_g * s * 10) / 10,
-        fat_g: Math.round(item.nutrition.fat_g * s * 10) / 10,
-        saturated_fat_g: Math.round(item.nutrition.saturated_fat_g * s * 10) / 10,
-        sodium_mg: Math.round(item.nutrition.sodium_mg * s),
-      };
+      const nutrition = scaleNutrition(item.nutrition, servingG / 100);
       const score = scoreFood(nutrition, servingG, profile.mode, phaseInfo?.phase);
       const logged: LoggedMeal = {
         id: `log-${Date.now()}-${Math.random().toString(36).slice(2)}`,
@@ -289,20 +265,10 @@ export default function Log() {
     if (!profile || buildItems.length === 0) return;
     const totalG = buildItems.reduce((s, i) => s + i.serving_g, 0);
     const nutritionPer100 = buildItems.map((bi) => ({
-      nutrition: {
-        calories: bi.ingredient.calories,
-        protein_g: bi.ingredient.protein_g,
-        carbs_g: bi.ingredient.carbs_g,
-        fiber_g: bi.ingredient.fiber_g,
-        sugar_g: bi.ingredient.sugar_g,
-        fat_g: bi.ingredient.fat_g,
-        saturated_fat_g: bi.ingredient.saturated_fat_g,
-        sodium_mg: bi.ingredient.sodium_mg,
-        omega3_g: bi.ingredient.omega3_g,
-      },
+      nutrition: ingredientToNutrition(bi.ingredient),
       serving_g: bi.serving_g,
     }));
-    const nutrition = roundNutr(sumNutr(nutritionPer100));
+    const nutrition = sumNutr(nutritionPer100);
     const score = scoreFood(nutrition, totalG, profile.mode, phaseInfo?.phase);
     const logged: LoggedMeal = {
       id: `log-${Date.now()}-${Math.random().toString(36).slice(2)}`,
@@ -351,20 +317,10 @@ export default function Log() {
 
   // Build-a-meal totals preview
   const buildTotals = buildItems.length > 0
-    ? roundNutr(sumNutr(buildItems.map((bi) => ({
-        nutrition: {
-          calories: bi.ingredient.calories,
-          protein_g: bi.ingredient.protein_g,
-          carbs_g: bi.ingredient.carbs_g,
-          fiber_g: bi.ingredient.fiber_g,
-          sugar_g: bi.ingredient.sugar_g,
-          fat_g: bi.ingredient.fat_g,
-          saturated_fat_g: bi.ingredient.saturated_fat_g,
-          sodium_mg: bi.ingredient.sodium_mg,
-          omega3_g: bi.ingredient.omega3_g,
-        },
+    ? sumNutr(buildItems.map((bi) => ({
+        nutrition: ingredientToNutrition(bi.ingredient),
         serving_g: bi.serving_g,
-      }))))
+      })))
     : null;
 
   return (
@@ -441,6 +397,15 @@ export default function Log() {
                           mode={profile.mode}
                           language={language}
                           onAdd={() => setPendingIngredient(ing)}
+                          onView={() => setNutritionSheet({
+                            title: language === 'he' ? (ing.nameHe ?? ing.name) : ing.name,
+                            subtitle: hasMicronutrientData(ing.micronutrients)
+                              ? `${countMicronutrients(ing.micronutrients)} micronutrients available`
+                              : 'Micronutrients not available for this ingredient yet',
+                            nutritionPer100g: ingredientToNutrition(ing),
+                            servingG: ing.common_serving_g,
+                            servingLabel: ing.common_serving_label,
+                          })}
                         />
                       ))}
                     </div>
@@ -460,6 +425,15 @@ export default function Log() {
                             key={item.id}
                             item={item}
                             onAdd={() => setPendingOff(item)}
+                            onView={() => setNutritionSheet({
+                              title: item.name,
+                              subtitle: hasMicronutrientData(item.nutrition.micronutrients)
+                                ? 'Micronutrients from product data'
+                                : 'Micronutrients unavailable in this product source',
+                              nutritionPer100g: item.nutrition,
+                              servingG: 100,
+                              servingLabel: '100 g',
+                            })}
                           />
                         ))}
                       </div>
@@ -508,6 +482,15 @@ export default function Log() {
                           mode={profile.mode}
                           language={language}
                           onAdd={() => setPendingIngredient(ing)}
+                          onView={() => setNutritionSheet({
+                            title: language === 'he' ? (ing.nameHe ?? ing.name) : ing.name,
+                            subtitle: hasMicronutrientData(ing.micronutrients)
+                              ? `${countMicronutrients(ing.micronutrients)} micronutrients available`
+                              : 'Micronutrients not available for this ingredient yet',
+                            nutritionPer100g: ingredientToNutrition(ing),
+                            servingG: ing.common_serving_g,
+                            servingLabel: ing.common_serving_label,
+                          })}
                         />
                       ))}
                   </div>
@@ -531,6 +514,13 @@ export default function Log() {
                       key={meal.id}
                       meal={meal}
                       profile={profile}
+                      onView={() => setNutritionSheet({
+                        title: meal.name,
+                        subtitle: nutritionSheetSubtitle(meal.nutrition, 'Recipe nutrition'),
+                        nutritionPer100g: scaleNutrition(meal.nutrition, 100 / 300),
+                        servingG: 300,
+                        servingLabel: 'Default serving',
+                      })}
                       onLog={quickLogMeal}
                       loggedId={loggedMealId}
                     />
@@ -565,6 +555,13 @@ export default function Log() {
                         key={meal.id}
                         meal={meal}
                         profile={profile}
+                        onView={() => setNutritionSheet({
+                          title: meal.name,
+                          subtitle: nutritionSheetSubtitle(meal.nutrition, 'Recipe nutrition'),
+                          nutritionPer100g: scaleNutrition(meal.nutrition, 100 / 300),
+                          servingG: 300,
+                          servingLabel: 'Default serving',
+                        })}
                         onLog={quickLogMeal}
                         loggedId={loggedMealId}
                       />
@@ -593,6 +590,15 @@ export default function Log() {
                       mode={profile.mode}
                       language={language}
                       onAdd={() => setBuildPendingIngredient(ing)}
+                      onView={() => setNutritionSheet({
+                        title: language === 'he' ? (ing.nameHe ?? ing.name) : ing.name,
+                        subtitle: hasMicronutrientData(ing.micronutrients)
+                          ? `${countMicronutrients(ing.micronutrients)} micronutrients available`
+                          : 'Micronutrients not available for this ingredient yet',
+                        nutritionPer100g: ingredientToNutrition(ing),
+                        servingG: ing.common_serving_g,
+                        servingLabel: ing.common_serving_label,
+                      })}
                       actionLabel="Add"
                     />
                   ))}
@@ -617,6 +623,18 @@ export default function Log() {
                         <p className="text-xs text-ink-40">{bi.serving_g} g · {Math.round(bi.ingredient.calories * bi.serving_g / 100)} kcal</p>
                       </div>
                       <button
+                        onClick={() => setNutritionSheet({
+                          title: bi.ingredient.name,
+                          subtitle: `${bi.serving_g} g in this custom meal`,
+                          nutritionPer100g: ingredientToNutrition(bi.ingredient),
+                          servingG: bi.serving_g,
+                          servingLabel: `${bi.serving_g} g`,
+                        })}
+                        className="text-xs font-medium text-sage-deep whitespace-nowrap"
+                      >
+                        Details
+                      </button>
+                      <button
                         onClick={() => setBuildItems((prev) => prev.filter((_, i) => i !== idx))}
                         className="tap-target flex items-center justify-center"
                       >
@@ -631,7 +649,26 @@ export default function Log() {
             {/* Totals preview */}
             {buildTotals && (
               <div className="bg-cream-card border border-sage-primary/30 rounded-2xl p-4">
-                <p className="text-xs font-semibold text-ink-40 uppercase tracking-wide mb-2">Meal totals</p>
+                <div className="flex items-start justify-between gap-3 mb-2">
+                  <p className="text-xs font-semibold text-ink-40 uppercase tracking-wide">Meal totals</p>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const totalG = buildItems.reduce((sum, item) => sum + item.serving_g, 0);
+                      setNutritionSheet({
+                        title: buildMealName.trim() || 'Custom Meal',
+                        subtitle: nutritionSheetSubtitle(buildTotals, `${totalG} g total`),
+                        nutritionPer100g: scaleNutrition(buildTotals, 100 / totalG),
+                        servingG: totalG,
+                        servingLabel: `${totalG} g total`,
+                      });
+                    }}
+                    className="text-xs font-medium text-sage-deep"
+                    data-testid="build-meal-detail-btn"
+                  >
+                    Full nutrition
+                  </button>
+                </div>
                 <div className="grid grid-cols-4 gap-2 text-center">
                   {[
                     { label: 'kcal', val: buildTotals.calories },
@@ -712,6 +749,17 @@ export default function Log() {
           onCancel={() => setBuildPendingIngredient(null)}
         />
       )}
+
+      {nutritionSheet && (
+        <NutritionDetailSheet
+          title={nutritionSheet.title}
+          subtitle={nutritionSheet.subtitle}
+          nutritionPer100g={nutritionSheet.nutritionPer100g}
+          servingG={nutritionSheet.servingG}
+          servingLabel={nutritionSheet.servingLabel}
+          onClose={() => setNutritionSheet(null)}
+        />
+      )}
     </div>
   );
 }
@@ -723,12 +771,14 @@ function IngredientRow({
   mode,
   language,
   onAdd,
+  onView,
   actionLabel = '+',
 }: {
   ingredient: Ingredient;
   mode: 'pcos' | 'bulk' | 'maintain';
   language: 'en' | 'he';
   onAdd: () => void;
+  onView: () => void;
   actionLabel?: string;
 }) {
   const score = mode === 'pcos' ? ingredient.pcos_score : ingredient.bulk_score;
@@ -746,14 +796,16 @@ function IngredientRow({
           <ScoreBadge score={score} size="sm" />
         </div>
         <div className="text-xs text-ink-40 mt-0.5 flex gap-2 flex-wrap">
-          <span>{ingredient.calories} kcal/100g</span>
-          <span>·</span>
-          <span>{ingredient.protein_g}g P</span>
-          <span>·</span>
-          <span>{ingredient.carbs_g}g C</span>
-          <span>·</span>
-          <span>{ingredient.fat_g}g F</span>
+          <span>{rowSummary(ingredientToNutrition(ingredient))}</span>
         </div>
+        <button
+          type="button"
+          onClick={onView}
+          className="mt-1 text-xs font-medium text-sage-deep"
+          data-testid={`ingredient-detail-btn-${ingredient.id}`}
+        >
+          Full nutrition
+        </button>
         {ingredient.tags.length > 0 && (
           <div className="flex gap-1 mt-1 flex-wrap">
             {ingredient.tags.slice(0, 3).map((t) => (
@@ -776,21 +828,20 @@ function IngredientRow({
 function OFFRow({
   item,
   onAdd,
+  onView,
 }: {
   item: { id: string; name: string; nutrition: NutritionData };
   onAdd: () => void;
+  onView: () => void;
 }) {
   return (
     <div className="bg-cream-card border border-sand rounded-2xl p-3.5 flex items-center gap-3">
       <div className="flex-1 min-w-0">
         <p className="text-sm font-medium text-plum-dark truncate">{item.name}</p>
-        <div className="text-xs text-ink-40 mt-0.5 flex gap-2">
-          <span>{item.nutrition.calories} kcal/100g</span>
-          <span>·</span>
-          <span>{item.nutrition.protein_g}g P</span>
-          <span>·</span>
-          <span>{item.nutrition.carbs_g}g C</span>
-        </div>
+        <div className="text-xs text-ink-40 mt-0.5">{rowSummary(item.nutrition)}</div>
+        <button type="button" onClick={onView} className="mt-1 text-xs font-medium text-sage-deep">
+          Full nutrition
+        </button>
       </div>
       <button
         onClick={onAdd}
@@ -805,11 +856,13 @@ function OFFRow({
 function MealRow({
   meal,
   profile,
+  onView,
   onLog,
   loggedId,
 }: {
   meal: MealItem;
   profile: NonNullable<ReturnType<typeof selectActiveProfile>>;
+  onView: () => void;
   onLog: (m: MealItem) => void;
   loggedId: string | null;
 }) {
@@ -830,6 +883,14 @@ function MealRow({
           <span>·</span>
           <span>{meal.prep_time_min} min</span>
         </div>
+        <button
+          type="button"
+          onClick={onView}
+          className="mt-1 text-xs font-medium text-sage-deep"
+          data-testid={`meal-detail-btn-${meal.id}`}
+        >
+          Full nutrition
+        </button>
         {meal.gap_coverage.length > 0 && (
           <div className="flex gap-1 mt-1 flex-wrap">
             {meal.gap_coverage.map((g) => (

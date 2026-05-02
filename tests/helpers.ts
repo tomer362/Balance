@@ -52,7 +52,7 @@ export async function setOnboardedState(page: Page): Promise<void> {
           },
         ],
       },
-      version: 3,
+      version: 4,
     };
     localStorage.setItem('balance-storage', JSON.stringify(state));
   });
@@ -114,6 +114,12 @@ export async function setOnboardedStateWithMeal(page: Page): Promise<void> {
                   saturated_fat_g: 2,
                   sodium_mg: 90,
                   omega3_g: 1.5,
+                  micronutrients: {
+                    calcium_mg: 180,
+                    potassium_mg: 320,
+                    vitamin_b12_mcg: 0.8,
+                    vitamin_c_mg: 12,
+                  },
                 },
                 score: 8.5,
               },
@@ -132,7 +138,7 @@ export async function setOnboardedStateWithMeal(page: Page): Promise<void> {
           },
         ],
       },
-      version: 3,
+      version: 4,
     };
     localStorage.setItem('balance-storage', JSON.stringify(state));
   });

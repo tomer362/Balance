@@ -1,4 +1,5 @@
 import type { NutritionData } from '../store/appStore';
+import { normalizeNutrition } from './nutrition';
 
 const BASE_URL = 'https://world.openfoodfacts.org';
 
@@ -15,6 +16,17 @@ interface OFFProduct {
     fat_100g?: number;
     'saturated-fat_100g'?: number;
     sodium_100g?: number;
+    'omega-3-fat_100g'?: number;
+    'docosahexaenoic-acid_100g'?: number;
+    calcium_100g?: number;
+    iron_100g?: number;
+    magnesium_100g?: number;
+    potassium_100g?: number;
+    zinc_100g?: number;
+    'vitamin-d_100g'?: number;
+    'vitamin-b12_100g'?: number;
+    'vitamin-b9_100g'?: number;
+    'vitamin-c_100g'?: number;
   };
   ingredients_text?: string;
   ingredients?: Array<{ text: string }>;
@@ -23,7 +35,7 @@ interface OFFProduct {
 function parseNutrition(nutriments: OFFProduct['nutriments'], per100g = true): NutritionData {
   const n = nutriments ?? {};
   const factor = per100g ? 1 : 1;
-  return {
+  return normalizeNutrition({
     calories: Math.round((n['energy-kcal_100g'] ?? n['energy-kcal'] ?? 0) * factor),
     protein_g: Math.round((n.proteins_100g ?? 0) * factor * 10) / 10,
     carbs_g: Math.round((n.carbohydrates_100g ?? 0) * factor * 10) / 10,
@@ -32,7 +44,19 @@ function parseNutrition(nutriments: OFFProduct['nutriments'], per100g = true): N
     fat_g: Math.round((n.fat_100g ?? 0) * factor * 10) / 10,
     saturated_fat_g: Math.round((n['saturated-fat_100g'] ?? 0) * factor * 10) / 10,
     sodium_mg: Math.round((n.sodium_100g ?? 0) * 1000 * factor),
-  };
+    omega3_g: n['omega-3-fat_100g'] ?? n['docosahexaenoic-acid_100g'],
+    micronutrients: {
+      calcium_mg: n.calcium_100g,
+      iron_mg: n.iron_100g,
+      magnesium_mg: n.magnesium_100g,
+      potassium_mg: n.potassium_100g,
+      zinc_mg: n.zinc_100g,
+      vitamin_d_mcg: n['vitamin-d_100g'],
+      vitamin_b12_mcg: n['vitamin-b12_100g'],
+      folate_mcg: n['vitamin-b9_100g'],
+      vitamin_c_mg: n['vitamin-c_100g'],
+    },
+  });
 }
 
 export async function fetchByBarcode(barcode: string): Promise<{

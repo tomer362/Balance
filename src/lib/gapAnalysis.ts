@@ -1,4 +1,5 @@
 import type { NutritionData, Targets } from '../store/appStore';
+import { sumNutrition } from './nutrition';
 
 export interface Gap {
   nutrient: string;
@@ -9,33 +10,7 @@ export interface Gap {
 }
 
 export function sumNutrients(meals: NutritionData[]): NutritionData {
-  return meals.reduce(
-    (acc, n) => ({
-      calories: acc.calories + n.calories,
-      protein_g: acc.protein_g + n.protein_g,
-      carbs_g: acc.carbs_g + n.carbs_g,
-      fiber_g: acc.fiber_g + n.fiber_g,
-      sugar_g: acc.sugar_g + n.sugar_g,
-      fat_g: acc.fat_g + n.fat_g,
-      saturated_fat_g: acc.saturated_fat_g + n.saturated_fat_g,
-      sodium_mg: acc.sodium_mg + n.sodium_mg,
-      glycemic_index: undefined,
-      glycemic_load: (acc.glycemic_load ?? 0) + (n.glycemic_load ?? 0),
-      omega3_g: (acc.omega3_g ?? 0) + (n.omega3_g ?? 0),
-    }),
-    {
-      calories: 0,
-      protein_g: 0,
-      carbs_g: 0,
-      fiber_g: 0,
-      sugar_g: 0,
-      fat_g: 0,
-      saturated_fat_g: 0,
-      sodium_mg: 0,
-      glycemic_load: 0,
-      omega3_g: 0,
-    } as NutritionData
-  );
+  return sumNutrition(meals);
 }
 
 /**

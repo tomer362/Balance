@@ -8,6 +8,7 @@ import { computePCOSTargets, computeBulkTargets, computeMaintainTargets, deriveG
 import { getCurrentPhase } from '../lib/cyclePhase';
 import { sumNutrients } from '../lib/gapAnalysis';
 import { getSuggestions } from '../lib/suggestionEngine';
+import { MICRONUTRIENT_FIELDS } from '../lib/nutrition';
 
 const LANGUAGE_LABELS = {
   en: { primary: 'English', secondary: 'Hebrew on the side', cta: 'Switch to Hebrew' },
@@ -17,25 +18,58 @@ const CONCERNS = ['Insulin resistance', 'Weight', 'Hirsutism', 'Acne', 'Fertilit
 const DIETARY_FLAGS = ['Vegetarian', 'Vegan', 'Gluten-free', 'Dairy-limited', 'Nut-free'];
 const SUPPLEMENTS = ['Creatine 5g daily', 'Whey protein', 'Fish oil', 'Vitamin D', 'Inositol'];
 const DAYS_SHORT = ['M', 'T', 'W', 'T', 'F', 'S', 'S'];
+const EXPORT_NUTRITION_HEADERS = [
+  'sugar_g',
+  'saturated_fat_g',
+  'sodium_mg',
+  'glycemic_index',
+  'glycemic_load',
+  'omega3_g',
+  ...MICRONUTRIENT_FIELDS.map(({ key }) => key),
+  'ingredients',
+] as const;
+
+function csvCell(value: string | number | undefined): string {
+  const text = value === undefined ? '' : String(value);
+  return `"${text.replace(/"/g, '""')}"`;
+}
+
+function nutritionExportValue(profileNutrition: Profile['foodLog'][number]['nutrition'], header: typeof EXPORT_NUTRITION_HEADERS[number]): string | number | undefined {
+  const flattened = {
+    sugar_g: profileNutrition.sugar_g,
+    saturated_fat_g: profileNutrition.saturated_fat_g,
+    sodium_mg: profileNutrition.sodium_mg,
+    glycemic_index: profileNutrition.glycemic_index,
+    glycemic_load: profileNutrition.glycemic_load,
+    omega3_g: profileNutrition.omega3_g,
+    ...profileNutrition.micronutrients,
+    ingredients: profileNutrition.ingredients?.join(' | '),
+  } satisfies Record<string, string | number | undefined>;
+
+  return flattened[header];
+}
 
 // ─── CSV helpers ──────────────────────────────────────────────────────────────
 
 function exportCSV(profile: Profile): void {
   const headers = [
     'date', 'meal_name', 'meal_type', 'serving_g', 'calories',
-    'protein_g', 'carbs_g', 'fat_g', 'fiber_g', 'score',
+    'protein_g', 'carbs_g', 'fat_g', 'fiber_g',
+    ...EXPORT_NUTRITION_HEADERS,
+    'score',
   ];
   const rows = profile.foodLog.map((m) => [
-    m.timestamp.split('T')[0],
-    `"${m.name.replace(/"/g, '""')}"`,
-    m.meal_type,
-    m.serving_g,
-    m.nutrition.calories,
-    m.nutrition.protein_g,
-    m.nutrition.carbs_g,
-    m.nutrition.fat_g,
-    m.nutrition.fiber_g,
-    m.score.toFixed(1),
+    csvCell(m.timestamp.split('T')[0]),
+    csvCell(m.name),
+    csvCell(m.meal_type),
+    csvCell(m.serving_g),
+    csvCell(m.nutrition.calories),
+    csvCell(m.nutrition.protein_g),
+    csvCell(m.nutrition.carbs_g),
+    csvCell(m.nutrition.fat_g),
+    csvCell(m.nutrition.fiber_g),
+    ...EXPORT_NUTRITION_HEADERS.map((header) => csvCell(nutritionExportValue(m.nutrition, header))),
+    csvCell(m.score.toFixed(1)),
   ]);
 
   const csv = [headers.join(','), ...rows.map((r) => r.join(','))].join('\n');
@@ -78,9 +112,8 @@ function exportAIReview(profile: Profile, computedTargets: Targets): void {
     today: { meals: todayMeals, totals, remaining },
     suggestions: suggestions.map((s) => ({
       name: s.name,
-      calories: s.nutrition.calories,
-      protein_g: s.nutrition.protein_g,
-      score: s.pcos_score,
+      nutrition: s.nutrition,
+      score: profile.mode === 'pcos' ? s.pcos_score : (s.bulk_score ?? s.pcos_score),
       closedGaps: s.closedGaps,
     })),
     validationQuestions: [

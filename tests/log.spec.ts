@@ -51,4 +51,38 @@ test.describe('Log page', () => {
     await page.getByTestId('bottomsheet-backdrop').click();
     await expect(page.getByTestId('serving-picker')).not.toBeVisible();
   });
+
+  test('ingredient detail sheet shows per-100g and per-serving micronutrients', async ({ page }) => {
+    await page.getByPlaceholder(/search/i).fill('spinach');
+    await page.getByTestId('ingredient-detail-btn-spinach').click();
+
+    await expect(page.getByTestId('nutrition-detail-sheet')).toBeVisible();
+    await expect(page.getByTestId('nutrition-detail-per-100g')).toContainText('Iron');
+    await expect(page.getByTestId('nutrition-detail-per-100g')).toContainText('2.7 mg');
+    await expect(page.getByTestId('nutrition-detail-per-100g')).toContainText('Folate');
+    await expect(page.getByTestId('nutrition-detail-per-100g')).toContainText('194 mcg');
+    await expect(page.getByTestId('nutrition-detail-per-serving')).toContainText('2 cups baby spinach (80 g)');
+    await expect(page.getByTestId('nutrition-detail-per-serving')).toContainText('2.2 mg');
+    await expect(page.getByTestId('nutrition-detail-per-serving')).toContainText('155 mcg');
+  });
+
+  test('recipe meal detail sheet opens from meals tab', async ({ page }) => {
+    await page.getByRole('button', { name: 'Meals' }).click();
+    await page.getByTestId(/meal-detail-btn-/).first().click();
+
+    await expect(page.getByTestId('nutrition-detail-sheet')).toBeVisible();
+    await expect(page.getByTestId('nutrition-detail-per-100g')).toContainText('Calories');
+    await expect(page.getByTestId('nutrition-detail-per-serving')).toContainText('Default serving');
+  });
+
+  test('build meal totals can open full nutrition details', async ({ page }) => {
+    await page.getByRole('button', { name: 'Build meal' }).click();
+    await page.getByPlaceholder(/search ingredients/i).fill('egg');
+    await page.getByTestId('ingredient-add-btn').first().click();
+    await page.getByTestId('serving-confirm').click({ force: true });
+    await page.getByTestId('build-meal-detail-btn').click();
+
+    await expect(page.getByTestId('nutrition-detail-sheet')).toBeVisible();
+    await expect(page.getByTestId('nutrition-detail-per-serving')).toContainText('55 g total');
+  });
 });

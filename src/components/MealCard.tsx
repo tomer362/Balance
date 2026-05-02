@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Trash2, Edit3 } from 'lucide-react';
+import { Trash2, Edit3, Info } from 'lucide-react';
 import type { LoggedMeal } from '../store/appStore';
 import ScoreBadge from './ScoreBadge';
 
@@ -7,6 +7,7 @@ interface MealCardProps {
   meal: LoggedMeal;
   onDelete?: () => void;
   onEdit?: () => void;
+  onViewNutrition?: () => void;
 }
 
 function formatTime(iso: string): string {
@@ -26,7 +27,7 @@ function mealTypeEmoji(type: LoggedMeal['meal_type']): string {
   return map[type] ?? '🍽️';
 }
 
-export default function MealCard({ meal, onDelete, onEdit }: MealCardProps) {
+export default function MealCard({ meal, onDelete, onEdit, onViewNutrition }: MealCardProps) {
   const [showActions, setShowActions] = useState(false);
 
   return (
@@ -54,8 +55,17 @@ export default function MealCard({ meal, onDelete, onEdit }: MealCardProps) {
           </div>
         </div>
 
-        {(onDelete || onEdit) && (
+        {(onDelete || onEdit || onViewNutrition) && (
           <div className="flex gap-1 flex-shrink-0">
+            {onViewNutrition && (
+              <button
+                data-testid="meal-card-nutrition"
+                onClick={onViewNutrition}
+                className="p-1.5 rounded-lg text-ink-40 hover:text-sage-deep hover:bg-sand transition-colors"
+              >
+                <Info size={15} />
+              </button>
+            )}
             {onEdit && (
               <button
                 data-testid="meal-card-edit"

@@ -1,6 +1,7 @@
 import type { MealItem, NutritionData } from '../store/appStore';
 import importedMealRows from './importedMealDatabase.json';
 import { scoreFood } from '../lib/scoring';
+import { normalizeNutrition } from '../lib/nutrition';
 
 export interface ImportedMealRecord {
   id: string;
@@ -24,12 +25,13 @@ function slugify(value: string): string {
     .slice(0, 80);
 }
 
-function normalizeImportedMeal(row: ImportedMealRecord): MealItem {
+export function normalizeImportedMealRecord(row: ImportedMealRecord): MealItem {
   const sourceTag = row.source ? `source-${slugify(row.source)}` : 'source-import';
   const brandTag = row.brand ? `brand-${slugify(row.brand)}` : null;
   const baseTags = row.tags ?? [];
   const tags = Array.from(new Set([...baseTags, sourceTag, ...(brandTag ? [brandTag] : [])]));
   const servingG = row.serving_g ?? 300;
+  const nutrition = normalizeNutrition(row.nutrition);
 
   return {
     id: `import-${row.id || slugify(row.name)}`,
@@ -38,10 +40,10 @@ function normalizeImportedMeal(row: ImportedMealRecord): MealItem {
     meal_types: row.meal_types?.length ? row.meal_types : ['lunch', 'dinner', 'snack'],
     tags,
     dietary: row.dietary ?? [],
-    nutrition: row.nutrition,
-    pcos_score: Number(scoreFood(row.nutrition, servingG, 'pcos').toFixed(1)),
-    bulk_score: Number(scoreFood(row.nutrition, servingG, 'bulk').toFixed(1)),
-    gap_coverage: inferGapCoverage(row.nutrition),
+    nutrition,
+    pcos_score: Number(scoreFood(nutrition, servingG, 'pcos').toFixed(1)),
+    bulk_score: Number(scoreFood(nutrition, servingG, 'bulk').toFixed(1)),
+    gap_coverage: inferGapCoverage(nutrition),
     instructions: row.instructions,
   };
 }
@@ -59,4 +61,4 @@ function inferGapCoverage(nutrition: NutritionData): string[] {
 
 export const importedMealDatabase: MealItem[] = (importedMealRows as ImportedMealRecord[])
   .filter((row) => row.id && row.name && row.nutrition)
-  .map(normalizeImportedMeal);
+  .map(normalizeImportedMealRecord);

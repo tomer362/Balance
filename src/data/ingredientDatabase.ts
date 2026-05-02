@@ -1,4 +1,7 @@
 import usdaFoundationIngredientRows from './usdaFoundationIngredients.json';
+import type { MicronutrientData, NutritionData } from '../store/appStore';
+import { normalizeNutrition, scaleNutrition } from '../lib/nutrition';
+import ingredientMicronutrients from './ingredientMicronutrients.json';
 
 /**
  * Israeli-diet ingredient database.
@@ -37,6 +40,7 @@ export interface Ingredient {
   glycemic_index?: number;
   glycemic_load?: number;
   omega3_g?: number;
+  micronutrients?: MicronutrientData;
   /** PCOS suitability 0-10 */
   pcos_score: number;
   /** Bulk suitability 0-10 */
@@ -47,6 +51,9 @@ export interface Ingredient {
   common_serving_label: string;
   tags: string[];
 }
+
+const curatedIngredientDatabase: Ingredient[] = [
+const ingredientMicronutrientMap = ingredientMicronutrients as Record<string, MicronutrientData>;
 
 const curatedIngredientDatabase: Ingredient[] = [
   // ─── PROTEINS ───────────────────────────────────────────────────────────────
@@ -865,8 +872,14 @@ const curatedIngredientDatabase: Ingredient[] = [
 ];
 
 export const ingredientDatabase: Ingredient[] = [
-  ...curatedIngredientDatabase,
-  ...(usdaFoundationIngredientRows as unknown as Ingredient[]),
+  ...curatedIngredientDatabase.map((ingredient) => ({
+    ...ingredient,
+    micronutrients: ingredientMicronutrientMap[ingredient.id],
+  })),
+  ...((usdaFoundationIngredientRows as unknown as Ingredient[]).map((ingredient) => ({
+    ...ingredient,
+    micronutrients: ingredient.micronutrients ?? ingredientMicronutrientMap[ingredient.id],
+  }))),
 ];
 
 /** Fast substring search across name, nameHe, tags and category. */
@@ -884,23 +897,24 @@ export function searchIngredients(query: string, limit = 20): Ingredient[] {
     .slice(0, limit);
 }
 
+export function ingredientToNutrition(ingredient: Ingredient): NutritionData {
+  return normalizeNutrition({
+    calories: ingredient.calories,
+    protein_g: ingredient.protein_g,
+    carbs_g: ingredient.carbs_g,
+    fiber_g: ingredient.fiber_g,
+    sugar_g: ingredient.sugar_g,
+    fat_g: ingredient.fat_g,
+    saturated_fat_g: ingredient.saturated_fat_g,
+    sodium_mg: ingredient.sodium_mg,
+    glycemic_index: ingredient.glycemic_index,
+    glycemic_load: ingredient.glycemic_load,
+    omega3_g: ingredient.omega3_g,
+    micronutrients: ingredient.micronutrients,
+  });
+}
+
 /** Scale nutrition from per-100g to actualG. */
-export function scaleIngredient(
-  ing: Ingredient,
-  actualG: number
-): Omit<Ingredient, 'id' | 'name' | 'category' | 'pcos_score' | 'bulk_score' | 'common_serving_g' | 'common_serving_label' | 'tags'> {
-  const s = actualG / 100;
-  return {
-    calories: Math.round(ing.calories * s),
-    protein_g: Math.round(ing.protein_g * s * 10) / 10,
-    carbs_g: Math.round(ing.carbs_g * s * 10) / 10,
-    fiber_g: Math.round(ing.fiber_g * s * 10) / 10,
-    sugar_g: Math.round(ing.sugar_g * s * 10) / 10,
-    fat_g: Math.round(ing.fat_g * s * 10) / 10,
-    saturated_fat_g: Math.round(ing.saturated_fat_g * s * 10) / 10,
-    sodium_mg: Math.round(ing.sodium_mg * s),
-    glycemic_index: ing.glycemic_index,
-    glycemic_load: ing.glycemic_load !== undefined ? Math.round(ing.glycemic_load * s) : undefined,
-    omega3_g: ing.omega3_g !== undefined ? Math.round(ing.omega3_g * s * 100) / 100 : undefined,
-  };
+export function scaleIngredient(ing: Ingredient, actualG: number): NutritionData {
+  return scaleNutrition(ingredientToNutrition(ing), actualG / 100);
 }
