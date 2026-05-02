@@ -243,6 +243,9 @@ export default function Profile() {
         ...(field === 'weight_kg' ? { goal_weight_kg: deriveGoalWeight(profile, final) } : {}),
       },
     });
+    if (field === 'weight_kg') {
+      setDraftGoalWeight(String(deriveGoalWeight(profile, final)));
+    }
     setShowGoalHint(true);
     if (goalHintTimerRef.current) clearTimeout(goalHintTimerRef.current);
     goalHintTimerRef.current = setTimeout(() => setShowGoalHint(false), 5000);

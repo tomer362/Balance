@@ -90,6 +90,13 @@ test.describe('Profile page', () => {
     await expect(page.getByText('2385 kcal')).toBeVisible({ timeout: 3000 });
   });
 
+  test('changing weight updates goal weight for the active mode', async ({ page }) => {
+    const weightInput = page.getByTestId('metrics-weight');
+    await weightInput.fill('80');
+    await weightInput.blur();
+    await expect(page.getByTestId('metrics-goal-weight')).toHaveValue('72');
+  });
+
   test('changing activity level updates TDEE', async ({ page }) => {
     // female, 30yo, 168cm, 75kg, active: BMR=1489, TDEE = round(1489 * 1.725) = 2569
     await page.getByTestId('metrics-activity').selectOption('active');

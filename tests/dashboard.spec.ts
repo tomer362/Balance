@@ -38,4 +38,14 @@ test.describe('Dashboard EditMealSheet', () => {
     await expect(page.getByTestId('edit-meal-sheet')).not.toBeVisible({ timeout: 2000 });
     await expect(page.getByText('Updated Breakfast')).toBeVisible();
   });
+
+  test('dashboard weight check-in updates weight and derived goal', async ({ page }) => {
+    await page.getByTestId('dashboard-weight-update').click();
+    await expect(page.getByTestId('weight-update-sheet')).toBeVisible();
+    await page.getByTestId('dashboard-weight-input').fill('80');
+    await page.getByTestId('dashboard-weight-save').click();
+    await expect(page.getByTestId('weight-update-sheet')).not.toBeVisible({ timeout: 2000 });
+    await expect(page.getByText('80 kg')).toBeVisible();
+    await expect(page.getByText('72 kg goal')).toBeVisible();
+  });
 });
