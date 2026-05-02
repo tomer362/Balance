@@ -9,6 +9,10 @@ import { getCurrentPhase } from '../lib/cyclePhase';
 import { sumNutrients } from '../lib/gapAnalysis';
 import { getSuggestions } from '../lib/suggestionEngine';
 
+const LANGUAGE_LABELS = {
+  en: { primary: 'English', secondary: 'Hebrew on the side', cta: 'Switch to Hebrew' },
+  he: { primary: 'עברית', secondary: 'English on the side', cta: 'Switch to English' },
+} as const;
 const CONCERNS = ['Insulin resistance', 'Weight', 'Hirsutism', 'Acne', 'Fertility', 'Irregular cycles'];
 const DIETARY_FLAGS = ['Vegetarian', 'Vegan', 'Gluten-free', 'Dairy-limited', 'Nut-free'];
 const SUPPLEMENTS = ['Creatine 5g daily', 'Whey protein', 'Fish oil', 'Vitamin D', 'Inositol'];
@@ -190,6 +194,8 @@ export default function Profile() {
   const navigate = useNavigate();
   const activeId = useAppStore((s) => s.activeProfileId);
   const profiles = useAppStore((s) => s.profiles);
+  const appSettings = useAppStore((s) => s.appSettings);
+  const setAppSettings = useAppStore((s) => s.setAppSettings);
   const setActiveProfile = useAppStore((s) => s.setActiveProfile);
   const updateProfile = useAppStore((s) => s.updateProfile);
   const deleteProfile = useAppStore((s) => s.deleteProfile);
@@ -452,6 +458,45 @@ export default function Profile() {
                 </button>
               </div>
             ))}
+          </div>
+        </Section>
+
+        {/* Settings */}
+        <Section title="Settings">
+          <div className="space-y-4">
+            <div>
+              <p className="text-xs text-ink-40 mb-2">Theme</p>
+              <div className="grid grid-cols-3 gap-2">
+                {(['auto', 'light', 'dark'] as const).map((theme) => (
+                  <button
+                    key={theme}
+                    data-testid={`theme-${theme}`}
+                    onClick={() => setAppSettings({ theme })}
+                    className={`py-2.5 rounded-xl text-xs font-semibold capitalize transition-all border ${
+                      appSettings.theme === theme ? 'bg-sage-deep text-white border-sage-deep' : 'bg-cream-card border-sand text-ink-60'
+                    }`}
+                  >
+                    {theme}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div className="flex items-center justify-between gap-3 border-t border-sand pt-4">
+              <div>
+                <p className="text-sm font-medium text-plum-dark">Language</p>
+                <p className="text-xs text-ink-40">
+                  {LANGUAGE_LABELS[appSettings.language].primary} · {LANGUAGE_LABELS[appSettings.language].secondary}
+                </p>
+              </div>
+              <button
+                data-testid="language-toggle"
+                onClick={() => setAppSettings({ language: appSettings.language === 'en' ? 'he' : 'en' })}
+                className="px-3 py-2 rounded-xl bg-sage-deep text-white text-xs font-semibold"
+              >
+                {LANGUAGE_LABELS[appSettings.language].cta}
+              </button>
+            </div>
           </div>
         </Section>
 

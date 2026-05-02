@@ -17,6 +17,38 @@
   --ink-40: #8F7F90;
 }
 
+:root[data-theme='dark'] {
+  --sage-primary: #A8C6A0;
+  --sage-deep: #89B081;
+  --coral-accent: #FF9B7D;
+  --plum-dark: #F5EAF6;
+  --cream-bg: #17121A;
+  --cream-card: #241C28;
+  --amber-warn: #F0C76C;
+  --terracotta: #E06F57;
+  --moss: #A7C99E;
+  --sand: #3A2E40;
+  --ink-60: #D0C0D2;
+  --ink-40: #A996AA;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root[data-theme='auto'] {
+    --sage-primary: #A8C6A0;
+    --sage-deep: #89B081;
+    --coral-accent: #FF9B7D;
+    --plum-dark: #F5EAF6;
+    --cream-bg: #17121A;
+    --cream-card: #241C28;
+    --amber-warn: #F0C76C;
+    --terracotta: #E06F57;
+    --moss: #A7C99E;
+    --sand: #3A2E40;
+    --ink-60: #D0C0D2;
+    --ink-40: #A996AA;
+  }
+}
+
 * {
   -webkit-tap-highlight-color: transparent;
 }

@@ -1,7 +1,8 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, ShoppingCart, Check, Share2, ChevronLeft, ChevronRight, X } from 'lucide-react';
+import { ArrowLeft, ShoppingCart, Check, ChevronLeft, ChevronRight, X, Sparkles } from 'lucide-react';
 import { useAppStore, selectActiveProfile } from '../store/appStore';
+import type { MealItem } from '../store/appStore';
 import { allMeals } from '../data/allMeals';
 import { getSuggestions } from '../lib/suggestionEngine';
 import ScoreBadge from '../components/ScoreBadge';
@@ -27,36 +28,66 @@ function dateKey(date: Date): string {
 interface GroceryItem {
   id: string;
   name: string;
-  amount: string;
+  amountG: number;
   category: 'produce' | 'fish_meat' | 'grains' | 'dairy' | 'pantry';
   checked: boolean;
 }
 
-const SAMPLE_GROCERY_LIST: GroceryItem[] = [
-  { id: 'g1', name: 'Salmon fillet', amount: '400g', category: 'fish_meat', checked: false },
-  { id: 'g2', name: 'Mackerel fillet', amount: '300g', category: 'fish_meat', checked: false },
-  { id: 'g3', name: 'Chicken breast', amount: '500g', category: 'fish_meat', checked: false },
-  { id: 'g4', name: 'Spinach', amount: '200g', category: 'produce', checked: false },
-  { id: 'g5', name: 'Kale', amount: '1 bunch', category: 'produce', checked: false },
-  { id: 'g6', name: 'Blueberries', amount: '250g', category: 'produce', checked: false },
-  { id: 'g7', name: 'Avocado', amount: '3', category: 'produce', checked: false },
-  { id: 'g8', name: 'Lemon', amount: '4', category: 'produce', checked: false },
-  { id: 'g9', name: 'Cherry tomatoes', amount: '300g', category: 'produce', checked: false },
-  { id: 'g10', name: 'Sweet potato', amount: '500g', category: 'produce', checked: false },
-  { id: 'g11', name: 'Quinoa', amount: '500g', category: 'grains', checked: false },
-  { id: 'g12', name: 'Red lentils', amount: '500g', category: 'grains', checked: false },
-  { id: 'g13', name: 'Rolled oats', amount: '500g', category: 'grains', checked: false },
-  { id: 'g14', name: 'Brown rice', amount: '1 kg', category: 'grains', checked: false },
-  { id: 'g15', name: 'Rye bread', amount: '1 loaf', category: 'grains', checked: false },
-  { id: 'g16', name: 'Greek yogurt 0%', amount: '500g', category: 'dairy', checked: false },
-  { id: 'g17', name: 'Eggs', amount: '12', category: 'dairy', checked: false },
-  { id: 'g18', name: 'Feta cheese', amount: '200g', category: 'dairy', checked: false },
-  { id: 'g19', name: 'Cottage cheese', amount: '400g', category: 'dairy', checked: false },
-  { id: 'g20', name: 'Chia seeds', amount: '200g', category: 'pantry', checked: false },
-  { id: 'g21', name: 'Walnuts', amount: '200g', category: 'pantry', checked: false },
-  { id: 'g22', name: 'Almonds', amount: '200g', category: 'pantry', checked: false },
-  { id: 'g23', name: 'Extra-virgin olive oil', amount: '500ml', category: 'pantry', checked: false },
-];
+const MEAL_GROCERY_ITEMS: Record<string, Array<Omit<GroceryItem, 'id' | 'checked'>>> = {
+  'grilled-mackerel-lentils': [
+    { name: 'Mackerel fillet', amountG: 150, category: 'fish_meat' },
+    { name: 'Lentils', amountG: 80, category: 'grains' },
+    { name: 'Kale', amountG: 80, category: 'produce' },
+    { name: 'Lemon', amountG: 40, category: 'produce' },
+  ],
+  'greek-yogurt-berries-chia': [
+    { name: 'Greek yogurt', amountG: 220, category: 'dairy' },
+    { name: 'Mixed berries', amountG: 100, category: 'produce' },
+    { name: 'Chia seeds', amountG: 20, category: 'pantry' },
+  ],
+  'quinoa-salmon-bowl': [
+    { name: 'Salmon fillet', amountG: 150, category: 'fish_meat' },
+    { name: 'Quinoa', amountG: 75, category: 'grains' },
+    { name: 'Cucumber', amountG: 80, category: 'produce' },
+    { name: 'Avocado', amountG: 70, category: 'produce' },
+  ],
+  'sardines-on-rye': [
+    { name: 'Sardines', amountG: 90, category: 'fish_meat' },
+    { name: 'Rye bread', amountG: 70, category: 'grains' },
+    { name: 'Tomato', amountG: 80, category: 'produce' },
+  ],
+  'lentil-feta-salad': [
+    { name: 'Lentils', amountG: 100, category: 'grains' },
+    { name: 'Feta cheese', amountG: 50, category: 'dairy' },
+    { name: 'Cherry tomatoes', amountG: 120, category: 'produce' },
+    { name: 'Cucumber', amountG: 100, category: 'produce' },
+  ],
+  'chicken-rice-bowl': [
+    { name: 'Chicken breast', amountG: 180, category: 'fish_meat' },
+    { name: 'Rice', amountG: 100, category: 'grains' },
+    { name: 'Broccoli', amountG: 120, category: 'produce' },
+  ],
+  'ground-beef-rice-veg': [
+    { name: 'Ground beef', amountG: 170, category: 'fish_meat' },
+    { name: 'Rice', amountG: 100, category: 'grains' },
+    { name: 'Bell peppers', amountG: 100, category: 'produce' },
+    { name: 'Zucchini', amountG: 100, category: 'produce' },
+  ],
+  'oats-whey-banana': [
+    { name: 'Rolled oats', amountG: 80, category: 'grains' },
+    { name: 'Whey protein', amountG: 30, category: 'pantry' },
+    { name: 'Banana', amountG: 120, category: 'produce' },
+  ],
+  'chia-pudding-berries': [
+    { name: 'Chia seeds', amountG: 35, category: 'pantry' },
+    { name: 'Mixed berries', amountG: 120, category: 'produce' },
+    { name: 'Walnuts', amountG: 25, category: 'pantry' },
+  ],
+  'cottage-cheese-berries': [
+    { name: 'Cottage cheese', amountG: 220, category: 'dairy' },
+    { name: 'Mixed berries', amountG: 100, category: 'produce' },
+  ],
+};
 
 const CATEGORY_META = {
   produce: { label: '🥬 Produce', order: 0 },
@@ -67,10 +98,24 @@ const CATEGORY_META = {
 };
 
 const SLOT_LABELS: Record<SlotKey, string> = {
-  breakfast: '🌅 Breakfast',
-  lunch: '🌞 Lunch',
-  dinner: '🌙 Dinner',
+  breakfast: 'Breakfast',
+  lunch: 'Lunch',
+  dinner: 'Dinner',
 };
+
+function formatAmount(g: number): string {
+  if (g >= 1000) return `${Math.round((g / 1000) * 10) / 10} kg`;
+  return `${Math.round(g)}g`;
+}
+
+function fallbackItemsForMeal(meal: MealItem): Array<Omit<GroceryItem, 'id' | 'checked'>> {
+  return meal.name
+    .split('+')
+    .map((part) => part.trim())
+    .filter(Boolean)
+    .slice(0, 4)
+    .map((name) => ({ name, amountG: 150, category: 'pantry' as const }));
+}
 
 export default function Groceries() {
   const navigate = useNavigate();
@@ -83,7 +128,7 @@ export default function Groceries() {
     const d = new Date().getDay();
     return d === 0 ? 6 : d - 1;
   });
-  const [groceries, setGroceries] = useState<GroceryItem[]>(SAMPLE_GROCERY_LIST);
+  const [checkedItems, setCheckedItems] = useState<Record<string, boolean>>({});
   const [swapTarget, setSwapTarget] = useState<{ dateKey: string; slot: SlotKey } | null>(null);
 
   if (!profile) return null;
@@ -115,8 +160,45 @@ export default function Groceries() {
     { label: SLOT_LABELS.dinner,    slot: 'dinner',    meal: getMealById(dayPlan?.dinner) },
   ];
 
+  const plannedMealsForWeek = weekDates.flatMap((d) => {
+    const plan = profile.mealPlan[dateKey(d)];
+    const ids = [plan?.breakfast, plan?.lunch, plan?.dinner, ...(plan?.snacks ?? [])].filter(Boolean) as string[];
+    return ids.map(getMealById).filter(Boolean) as MealItem[];
+  });
+
+  const groceries = plannedMealsForWeek.reduce<GroceryItem[]>((items, meal) => {
+    const recipeItems = MEAL_GROCERY_ITEMS[meal.id] ?? fallbackItemsForMeal(meal);
+    recipeItems.forEach((item) => {
+      const id = `${item.category}-${item.name.toLowerCase().replace(/[^a-z0-9]+/g, '-')}`;
+      const existing = items.find((g) => g.id === id);
+      if (existing) {
+        existing.amountG += item.amountG;
+      } else {
+        items.push({ ...item, id, checked: Boolean(checkedItems[id]) });
+      }
+    });
+    return items;
+  }, []);
+
   function toggleGrocery(id: string) {
-    setGroceries((prev) => prev.map((g) => g.id === id ? { ...g, checked: !g.checked } : g));
+    setCheckedItems((prev) => ({ ...prev, [id]: !prev[id] }));
+  }
+
+  function autoPlanWeek() {
+    if (!profile) return;
+    const suggestions = getSuggestions(profile, 9);
+    if (suggestions.length === 0) return;
+    const nextPlan = { ...profile.mealPlan };
+    weekDates.forEach((d, dayIndex) => {
+      const key = dateKey(d);
+      nextPlan[key] = {
+        ...nextPlan[key],
+        breakfast: nextPlan[key]?.breakfast ?? suggestions[(dayIndex * 3) % suggestions.length]?.id,
+        lunch: nextPlan[key]?.lunch ?? suggestions[(dayIndex * 3 + 1) % suggestions.length]?.id,
+        dinner: nextPlan[key]?.dinner ?? suggestions[(dayIndex * 3 + 2) % suggestions.length]?.id,
+      };
+    });
+    updateProfile(profile.id, { mealPlan: nextPlan });
   }
 
   function applySwap(mealId: string) {
@@ -136,6 +218,7 @@ export default function Groceries() {
   const swapSuggestions = swapTarget ? getSuggestions(profile, 3) : [];
 
   const checkedCount = groceries.filter((g) => g.checked).length;
+  const plannedMealCount = plannedMealsForWeek.length;
   const categories = Object.entries(CATEGORY_META).sort((a, b) => a[1].order - b[1].order);
 
   return (
@@ -198,9 +281,23 @@ export default function Groceries() {
           </div>
 
           <div className="px-4 space-y-3 pb-4">
-            <p className="text-sm font-medium text-ink-60">
-              {selectedDate.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}
-            </p>
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <p className="text-sm font-medium text-ink-60">
+                  {selectedDate.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}
+                </p>
+                <p className="text-xs text-ink-40">
+                  Plan meals first; the shopping list is generated from this week.
+                </p>
+              </div>
+              <button
+                onClick={autoPlanWeek}
+                className="flex items-center gap-1.5 rounded-xl bg-sage-deep text-white px-3 py-2 text-xs font-semibold"
+              >
+                <Sparkles size={14} />
+                Auto-plan
+              </button>
+            </div>
 
             {SLOTS.map(({ label, slot, meal }) => (
               <div key={slot} className="bg-cream-card rounded-2xl border border-sand p-4">
@@ -219,7 +316,6 @@ export default function Groceries() {
                       >
                         Swap
                       </button>
-                      <button className="text-xs text-moss bg-moss/10 rounded-lg px-2.5 py-1 font-medium">Done ✓</button>
                     </div>
                   </div>
                 ) : (
@@ -242,7 +338,7 @@ export default function Groceries() {
                 <ShoppingCart size={18} />
                 <span>Shopping list</span>
               </div>
-              <span className="text-sage-primary text-sm">{groceries.length} items</span>
+              <span className="text-sage-primary text-sm">{groceries.length} items from {plannedMealCount} meals</span>
             </button>
           </div>
         </>
@@ -252,17 +348,40 @@ export default function Groceries() {
         <div className="px-4 pb-4">
           {/* Progress */}
           <div className="flex items-center justify-between mb-4">
-            <p className="text-sm text-ink-60">
-              <span className="font-semibold text-plum-dark">{checkedCount}</span> / {groceries.length} checked
-            </p>
-            <button className="p-2 rounded-xl bg-sand text-ink-60">
-              <Share2 size={15} />
+            <div>
+              <p className="text-sm text-ink-60">
+                <span className="font-semibold text-plum-dark">{checkedCount}</span> / {groceries.length} checked
+              </p>
+              <p className="text-xs text-ink-40">Generated from {plannedMealCount} planned meal{plannedMealCount === 1 ? '' : 's'} this week.</p>
+            </div>
+            <button
+              onClick={autoPlanWeek}
+              className="rounded-xl bg-sand text-ink-60 px-3 py-2 text-xs font-semibold"
+            >
+              Fill week
             </button>
           </div>
 
-          {checkedCount > 0 && (
+          {groceries.length > 0 && (
             <div className="h-1.5 bg-sand rounded-full overflow-hidden mb-4">
               <div className="h-full bg-sage-primary rounded-full transition-all" style={{ width: `${(checkedCount / groceries.length) * 100}%` }} />
+            </div>
+          )}
+
+          {groceries.length === 0 && (
+            <div className="bg-cream-card border border-sand rounded-3xl p-5 text-center">
+              <ShoppingCart size={28} className="text-sage-deep mx-auto mb-3" />
+              <h2 className="font-semibold text-plum-dark">Your list starts with the weekly plan</h2>
+              <p className="text-sm text-ink-60 mt-1">
+                Add meals to the week, or let Balance fill the week with suggestions, and this list will build itself.
+              </p>
+              <button
+                onClick={autoPlanWeek}
+                className="mt-4 inline-flex items-center gap-2 rounded-2xl bg-sage-deep text-white px-4 py-3 text-sm font-semibold"
+              >
+                <Sparkles size={16} />
+                Auto-plan this week
+              </button>
             </div>
           )}
 
@@ -292,7 +411,7 @@ export default function Groceries() {
                         <span className={`flex-1 text-sm ${item.checked ? 'line-through text-ink-40' : 'text-plum-dark'}`}>
                           {item.name}
                         </span>
-                        <span className="text-xs text-ink-40">{item.amount}</span>
+                        <span className="text-xs text-ink-40">{formatAmount(item.amountG)}</span>
                       </button>
                     ))}
                   </div>
@@ -309,7 +428,7 @@ export default function Groceries() {
           {/* Backdrop */}
           <div className="absolute inset-0 bg-black/40" onClick={() => setSwapTarget(null)} />
 
-          <div className="relative bg-cream-bg rounded-t-3xl px-4 pt-4 pb-safe-or-6 z-10">
+          <div className="relative bg-cream-bg rounded-t-3xl px-4 pt-4 pb-6 pb-safe z-10">
             {/* Handle */}
             <div className="w-10 h-1 bg-sand rounded-full mx-auto mb-4" />
 

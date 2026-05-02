@@ -151,6 +151,7 @@ export default function Log() {
 
   const profile = useAppStore(selectActiveProfile);
   const logMeal = useAppStore((s) => s.logMeal);
+  const language = useAppStore((s) => s.appSettings.language);
 
   const [activeTab, setActiveTab] = useState<TabKey>('ingredients');
   const [query, setQuery] = useState(initialQuery);
@@ -342,6 +343,12 @@ export default function Log() {
     .filter((m, i, arr) => arr.findIndex((x) => x.name === m.name) === i)
     .slice(0, 4);
 
+  const allIngredients = [...ingredientDatabase].sort((a, b) => {
+    const aName = language === 'he' ? (a.nameHe ?? a.name) : a.name;
+    const bName = language === 'he' ? (b.nameHe ?? b.name) : b.name;
+    return aName.localeCompare(bName, language === 'he' ? 'he' : 'en');
+  });
+
   // Build-a-meal totals preview
   const buildTotals = buildItems.length > 0
     ? roundNutr(sumNutr(buildItems.map((bi) => ({
@@ -432,6 +439,7 @@ export default function Log() {
                           key={ing.id}
                           ingredient={ing}
                           mode={profile.mode}
+                          language={language}
                           onAdd={() => setPendingIngredient(ing)}
                         />
                       ))}
@@ -483,23 +491,22 @@ export default function Log() {
                   </section>
                 )}
 
-                {/* Browse by category */}
+                {/* Full ingredient list */}
                 <section>
                   <h2 className="text-xs font-semibold text-ink-40 uppercase tracking-wide mb-2">
-                    {profile.mode === 'pcos' ? 'PCOS-friendly staples' : 'Bulk staples'}
+                    All ingredients ({ingredientDatabase.length})
                   </h2>
+                  <p className="text-xs text-ink-40 mb-3">
+                    Full bundled database. Search also checks Hebrew names, tags, and categories.
+                  </p>
                   <div className="space-y-2">
-                    {ingredientDatabase
-                      .filter((i) => profile.mode === 'pcos' ? i.pcos_score >= 9.0 : i.bulk_score >= 9.0)
-                      .sort((a, b) =>
-                        profile.mode === 'pcos' ? b.pcos_score - a.pcos_score : b.bulk_score - a.bulk_score
-                      )
-                      .slice(0, 8)
+                    {allIngredients
                       .map((ing) => (
                         <IngredientRow
                           key={ing.id}
                           ingredient={ing}
                           mode={profile.mode}
+                          language={language}
                           onAdd={() => setPendingIngredient(ing)}
                         />
                       ))}
@@ -584,6 +591,7 @@ export default function Log() {
                       key={ing.id}
                       ingredient={ing}
                       mode={profile.mode}
+                      language={language}
                       onAdd={() => setBuildPendingIngredient(ing)}
                       actionLabel="Add"
                     />
@@ -713,23 +721,27 @@ export default function Log() {
 function IngredientRow({
   ingredient,
   mode,
+  language,
   onAdd,
   actionLabel = '+',
 }: {
   ingredient: Ingredient;
   mode: 'pcos' | 'bulk' | 'maintain';
+  language: 'en' | 'he';
   onAdd: () => void;
   actionLabel?: string;
 }) {
   const score = mode === 'pcos' ? ingredient.pcos_score : ingredient.bulk_score;
+  const primaryName = language === 'he' ? (ingredient.nameHe ?? ingredient.name) : ingredient.name;
+  const secondaryName = language === 'he' && ingredient.nameHe ? ingredient.name : ingredient.nameHe;
 
   return (
     <div className="bg-cream-card border border-sand rounded-2xl p-3.5 flex items-center gap-3">
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-2 flex-wrap">
-          <span className="text-sm font-medium text-plum-dark">{ingredient.name}</span>
-          {ingredient.nameHe && (
-            <span className="text-xs text-ink-40">{ingredient.nameHe}</span>
+          <span className="text-sm font-medium text-plum-dark">{primaryName}</span>
+          {secondaryName && (
+            <span className="text-xs text-ink-40">{secondaryName}</span>
           )}
           <ScoreBadge score={score} size="sm" />
         </div>

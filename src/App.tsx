@@ -1,3 +1,4 @@
+import { useEffect } from 'react';
 import { BrowserRouter, Routes, Route, useLocation } from 'react-router-dom';
 import { AnimatePresence, motion } from 'framer-motion';
 import BottomNav from './components/BottomNav';
@@ -20,6 +21,16 @@ const PAGE_VARIANTS = {
 function AppLayout() {
   const location = useLocation();
   const hideNav = location.pathname === '/scan';
+  const settings = useAppStore((s) => s.appSettings);
+
+  useEffect(() => {
+    const root = document.documentElement;
+    root.dataset.theme = settings.theme;
+    root.lang = settings.language;
+    root.dir = settings.language === 'he' ? 'rtl' : 'ltr';
+    const metaTheme = document.querySelector<HTMLMetaElement>('meta[name="theme-color"]');
+    metaTheme?.setAttribute('content', settings.theme === 'dark' ? '#17121A' : '#8FA989');
+  }, [settings.language, settings.theme]);
 
   return (
     <div className="min-h-screen bg-cream-bg">

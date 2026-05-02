@@ -117,9 +117,10 @@ export interface MealItem {
 export interface AppState {
   activeProfileId: string;
   profiles: Profile[];
-  appSettings: { units: 'metric' | 'imperial'; theme: 'auto' | 'light' | 'dark'; language: string };
+  appSettings: { units: 'metric' | 'imperial'; theme: 'auto' | 'light' | 'dark'; language: 'en' | 'he' };
   hasOnboarded: boolean;
   // Actions
+  setAppSettings: (updates: Partial<AppState['appSettings']>) => void;
   setActiveProfile: (id: string) => void;
   addProfile: (profile: Profile) => void;
   updateProfile: (id: string, updates: Partial<Profile>) => void;
@@ -469,6 +470,11 @@ export const useAppStore = create<AppState>()(
       profiles: defaultProfiles,
       appSettings: { units: 'metric', theme: 'auto', language: 'en' },
       hasOnboarded: false,
+
+      setAppSettings: (updates) =>
+        set((state) => ({
+          appSettings: { ...state.appSettings, ...updates },
+        })),
 
       setActiveProfile: (id) => set({ activeProfileId: id }),
 
