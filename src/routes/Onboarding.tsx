@@ -3,6 +3,7 @@ import { ArrowRight, ChevronLeft } from 'lucide-react';
 import { useAppStore } from '../store/appStore';
 import type { Profile } from '../store/appStore';
 import { computePCOSTargets, computeBulkTargets, computeMaintainTargets } from '../lib/targetComputation';
+import { directionalIconClass, sexLabel, useI18n } from '../lib/i18n';
 
 type AppMode = 'pcos' | 'bulk' | 'maintain';
 type PcosGoal = 'lose_weight' | 'manage_symptoms';
@@ -119,6 +120,7 @@ function buildProfile(
 }
 
 export default function Onboarding() {
+  const { copy, language } = useI18n();
   const completeOnboarding = useAppStore((s) => s.completeOnboarding);
 
   const [step, setStep] = useState<1 | 2 | 3>(1);
@@ -151,12 +153,12 @@ export default function Onboarding() {
   }
 
   return (
-    <div className="min-h-screen bg-cream-bg flex flex-col pt-safe pb-safe">
+    <div className="bg-cream-bg flex flex-col pt-safe pb-safe" style={{ minHeight: '100svh' }}>
       {/* Progress bar */}
       <div className="px-6 pt-4 pb-2 flex items-center gap-3">
         {step > 1 && (
           <button onClick={() => setStep((s) => (s - 1) as 1 | 2 | 3)} className="tap-target flex items-center justify-center">
-            <ChevronLeft size={22} className="text-ink-60" />
+            <ChevronLeft size={22} className={`text-ink-60 ${directionalIconClass(language)}`} />
           </button>
         )}
         <div className="flex-1 flex gap-1.5">
@@ -168,47 +170,54 @@ export default function Onboarding() {
           ))}
         </div>
         <button onClick={skipAll} className="text-xs text-ink-40 font-medium px-2 py-1">
-          Skip
+          {copy.onboarding.skip}
         </button>
       </div>
 
       {/* Step 1 — Name */}
       {step === 1 && (
-        <div className="flex-1 flex flex-col px-6 pt-8">
-          <div className="font-display text-3xl text-plum-dark mb-2 leading-tight">
-            Welcome to<br />Balance
+        <div className="flex-1 min-h-0 flex flex-col overflow-y-auto px-6 pt-8">
+          <div className="flex-1">
+            <div className="font-display text-3xl text-plum-dark mb-2 leading-tight">
+              {language === 'he' ? <>ברוכים הבאים<br />ל-Balance</> : <>Welcome to<br />Balance</>}
+            </div>
+            <p className="text-ink-60 text-sm mb-8">
+              {copy.onboarding.subtitle}
+            </p>
+
+            <label className="text-xs font-semibold text-ink-40 uppercase tracking-wide mb-2 block">
+              {copy.onboarding.nameLabel}
+            </label>
+            <input
+              type="text"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              placeholder={copy.onboarding.namePlaceholder}
+              data-testid="onboarding-name-input"
+              className="w-full px-4 py-3.5 rounded-2xl border border-sand bg-cream-card text-plum-dark placeholder-ink-40 focus:outline-none focus:border-sage-primary"
+            />
           </div>
-          <p className="text-ink-60 text-sm mb-8">
-            Goal-aware nutrition tracking that adapts to your body and goals.
-          </p>
 
-          <label className="text-xs font-semibold text-ink-40 uppercase tracking-wide mb-2">
-            Your name (optional)
-          </label>
-          <input
-            type="text"
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            placeholder="Your name"
-            data-testid="onboarding-name-input"
-            className="w-full px-4 py-3.5 rounded-2xl border border-sand bg-cream-card text-plum-dark placeholder-ink-40 focus:outline-none focus:border-sage-primary"
-          />
-
-          <button
-            onClick={() => setStep(2)}
-            data-testid="onboarding-step1-continue"
-            className="mt-auto mb-4 w-full bg-sage-deep text-white py-4 rounded-2xl font-semibold flex items-center justify-center gap-2"
+          <div
+            className="sticky bottom-0 bg-cream-bg pt-6"
+            style={{ paddingBottom: 'max(env(safe-area-inset-bottom, 0px), 16px)' }}
           >
-            Continue <ArrowRight size={18} />
-          </button>
+            <button
+              onClick={() => setStep(2)}
+              data-testid="onboarding-step1-continue"
+              className="w-full bg-sage-deep text-white py-4 rounded-2xl font-semibold flex items-center justify-center gap-2 shadow-[0_-8px_24px_rgba(248,244,236,0.9)]"
+            >
+              {copy.onboarding.continue} <ArrowRight size={18} className={directionalIconClass(language)} />
+            </button>
+          </div>
         </div>
       )}
 
       {/* Step 2 — Mode */}
       {step === 2 && (
         <div className="flex-1 flex flex-col px-6 pt-6 overflow-y-auto">
-          <h2 className="font-display text-2xl text-plum-dark mb-1">What's your goal?</h2>
-          <p className="text-ink-60 text-sm mb-6">Balance will personalise everything to your mode. You can change this anytime.</p>
+          <h2 className="font-display text-2xl text-plum-dark mb-1">{copy.onboarding.goalTitle}</h2>
+          <p className="text-ink-60 text-sm mb-6">{copy.onboarding.goalSubtitle}</p>
 
           <div className="space-y-3">
             {MODE_CARDS.map((card) => {
@@ -226,8 +235,8 @@ export default function Onboarding() {
                   <div className="flex items-center gap-3 mb-2">
                     <span className="text-2xl">{card.emoji}</span>
                     <div>
-                      <p className="font-semibold text-plum-dark text-base">{card.title}</p>
-                      <p className="text-xs text-ink-60">{card.subtitle}</p>
+                       <p className="font-semibold text-plum-dark text-base">{copy.onboarding.modeCards[card.mode].title}</p>
+                       <p className="text-xs text-ink-60">{copy.onboarding.modeCards[card.mode].subtitle}</p>
                     </div>
                     {active && (
                       <div
@@ -239,10 +248,10 @@ export default function Onboarding() {
                     )}
                   </div>
                   <div className="grid grid-cols-2 gap-x-3 gap-y-0.5">
-                    {card.bullets.map((b) => (
-                      <p key={b} className="text-xs text-ink-60">· {b}</p>
-                    ))}
-                  </div>
+                     {copy.onboarding.modeCards[card.mode].bullets.map((b) => (
+                       <p key={b} className="text-xs text-ink-60">· {b}</p>
+                     ))}
+                   </div>
                 </button>
               );
             })}
@@ -254,8 +263,8 @@ export default function Onboarding() {
               className="mt-4 bg-sage-primary/10 rounded-2xl p-4 space-y-3"
               data-testid="pcos-goal-section"
             >
-              <p className="text-sm font-semibold text-plum-dark">What's your primary focus with PCOS?</p>
-              {PCOS_GOAL_OPTIONS.map((opt) => (
+               <p className="text-sm font-semibold text-plum-dark">{copy.onboarding.pcosFocusTitle}</p>
+               {PCOS_GOAL_OPTIONS.map((opt) => (
                 <button
                   key={opt.value}
                   onClick={() => setPcosGoal(opt.value)}
@@ -275,10 +284,10 @@ export default function Onboarding() {
                       )}
                     </div>
                     <div>
-                      <p className="text-sm font-medium text-plum-dark">{opt.label}</p>
-                      <p className="text-xs text-ink-60 mt-0.5">{opt.description}</p>
-                    </div>
-                  </div>
+                       <p className="text-sm font-medium text-plum-dark">{copy.onboarding.pcosGoals[opt.value].label}</p>
+                       <p className="text-xs text-ink-60 mt-0.5">{copy.onboarding.pcosGoals[opt.value].description}</p>
+                     </div>
+                   </div>
                 </button>
               ))}
             </div>
@@ -292,7 +301,7 @@ export default function Onboarding() {
               selectedMode ? 'bg-sage-deep text-white' : 'bg-sand text-ink-40 opacity-50'
             }`}
           >
-            Continue <ArrowRight size={18} />
+            {copy.onboarding.continue} <ArrowRight size={18} className={directionalIconClass(language)} />
           </button>
         </div>
       )}
@@ -300,13 +309,13 @@ export default function Onboarding() {
       {/* Step 3 — Stats */}
       {step === 3 && (
         <div className="flex-1 flex flex-col px-6 pt-6">
-          <h2 className="font-display text-2xl text-plum-dark mb-1">Quick stats</h2>
+          <h2 className="font-display text-2xl text-plum-dark mb-1">{copy.onboarding.quickStats}</h2>
           <p className="text-ink-60 text-sm mb-6">
-            Used to calculate your daily targets. You can update these anytime in Profile.
+            {copy.onboarding.quickStatsSubtitle}
           </p>
 
           {/* Sex */}
-          <label className="text-xs font-semibold text-ink-40 uppercase tracking-wide mb-2">Sex</label>
+          <label className="text-xs font-semibold text-ink-40 uppercase tracking-wide mb-2">{copy.onboarding.sex}</label>
           <div className="flex gap-2 mb-4">
             {(['female', 'male', 'other'] as const).map((s) => (
               <button
@@ -316,14 +325,14 @@ export default function Onboarding() {
                   sex === s ? 'bg-sage-deep text-white border-sage-deep' : 'bg-cream-card border-sand text-ink-60'
                 }`}
               >
-                {s}
+                {sexLabel(s, language)}
               </button>
             ))}
           </div>
 
           <div className="grid grid-cols-3 gap-3 mb-4">
             <div>
-              <label className="text-xs text-ink-40 block mb-1.5">Age</label>
+               <label className="text-xs text-ink-40 block mb-1.5">{copy.onboarding.age}</label>
               <input
                 type="number"
                 inputMode="numeric"
@@ -334,7 +343,7 @@ export default function Onboarding() {
               />
             </div>
             <div>
-              <label className="text-xs text-ink-40 block mb-1.5">Weight (kg)</label>
+               <label className="text-xs text-ink-40 block mb-1.5">{copy.onboarding.weightKg}</label>
               <input
                 type="number"
                 inputMode="decimal"
@@ -345,7 +354,7 @@ export default function Onboarding() {
               />
             </div>
             <div>
-              <label className="text-xs text-ink-40 block mb-1.5">Height (cm)</label>
+               <label className="text-xs text-ink-40 block mb-1.5">{copy.onboarding.heightCm}</label>
               <input
                 type="number"
                 inputMode="numeric"
@@ -357,17 +366,17 @@ export default function Onboarding() {
             </div>
           </div>
 
-          <p className="text-xs text-ink-40 mb-auto">All fields are optional — you can skip and set them later.</p>
+           <p className="text-xs text-ink-40 mb-auto">{copy.onboarding.allOptional}</p>
 
           <button
             onClick={finish}
             data-testid="onboarding-finish"
             className="mb-4 w-full bg-sage-deep text-white py-4 rounded-2xl font-semibold flex items-center justify-center gap-2"
           >
-            Start using Balance <ArrowRight size={18} />
+            {copy.onboarding.startUsing} <ArrowRight size={18} className={directionalIconClass(language)} />
           </button>
           <button onClick={finish} className="mb-2 text-center text-sm text-ink-40">
-            Skip for now
+            {copy.onboarding.skipForNow}
           </button>
         </div>
       )}

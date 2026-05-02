@@ -1,0 +1,1215 @@
+import { useAppStore } from '../store/appStore';
+import type { Ingredient } from '../data/ingredientDatabase';
+import type { LoggedMeal, MealItem, Phase, Profile } from '../store/appStore';
+
+export type AppLanguage = 'en' | 'he';
+
+type ActivityLevel = Profile['demographics']['activity_level'];
+
+const translations = {
+  en: {
+    common: {
+      add: 'Add',
+      all: 'All',
+      carbs: 'Carbs',
+      calories: 'Calories',
+      close: 'Close',
+      continue: 'Continue',
+      details: 'Details',
+      done: 'Done',
+      fat: 'Fat',
+      fiber: 'Fiber',
+      fullNutrition: 'Full nutrition',
+      ingredients: 'Ingredients',
+      kcal: 'kcal',
+      meals: 'Meals',
+      micronutrients: 'Micronutrients',
+      omega3: 'Omega-3',
+      protein: 'Protein',
+      save: 'Save',
+      search: 'Search',
+      sugar: 'Sugar',
+      weight: 'Weight',
+    },
+    nav: {
+      home: 'Home',
+      meals: 'Meals',
+      grocery: 'Grocery',
+      profile: 'Profile',
+    },
+    onboarding: {
+      welcome: 'Welcome to Balance',
+      subtitle: 'Goal-aware nutrition tracking that adapts to your body and goals.',
+      nameLabel: 'Your name (optional)',
+      namePlaceholder: 'Your name',
+      continue: 'Continue',
+      goalTitle: "What's your goal?",
+      goalSubtitle: 'Balance will personalize everything to your mode. You can change this anytime.',
+      pcosFocusTitle: "What's your primary focus with PCOS?",
+      quickStats: 'Quick stats',
+      quickStatsSubtitle: 'Used to calculate your daily targets. You can update these anytime in Profile.',
+      sex: 'Sex',
+      age: 'Age',
+      weightKg: 'Weight (kg)',
+      heightCm: 'Height (cm)',
+      allOptional: 'All fields are optional — you can skip and set them later.',
+      startUsing: 'Start using Balance',
+      skipForNow: 'Skip for now',
+      skip: 'Skip',
+      modeCards: {
+        pcos: {
+          title: 'PCOS',
+          subtitle: 'Hormone & cycle support',
+          bullets: ['Cycle-phase nutrition', 'Low-glycaemic focus', 'Anti-inflammatory meals', 'Omega-3 & fiber tracking'],
+        },
+        bulk: {
+          title: 'Bulk',
+          subtitle: 'Muscle & performance',
+          bullets: ['High-protein targets', 'Training vs rest calories', 'Progressive surplus', 'Supplement tracking'],
+        },
+        maintain: {
+          title: 'Maintain',
+          subtitle: 'Balanced & sustainable',
+          bullets: ['Balanced macros', 'Weight stability', 'Flexible goals', 'General wellness'],
+        },
+      },
+      pcosGoals: {
+        lose_weight: {
+          label: 'Lose weight',
+          description: 'Moderate 300 kcal deficit, high protein to preserve muscle',
+        },
+        manage_symptoms: {
+          label: 'Manage symptoms',
+          description: 'Maintenance calories to support hormonal balance',
+        },
+      },
+    },
+    dashboard: {
+      greetings: {
+        morning: 'Good morning',
+        afternoon: 'Good afternoon',
+        evening: 'Good evening',
+      },
+      estimate: 'estimate',
+      training: 'Training',
+      trainingDay: 'Training day',
+      restDay: 'Rest day',
+      day: 'Day',
+      weightCheckIn: 'Weight check-in',
+      goal: 'goal',
+      todaysMeals: "Today's meals",
+      noMeals: 'No meals logged yet.',
+      logFirstMeal: 'Log your first meal',
+      trainingSuggestion: 'Training-day suggestion',
+      nextMealInsight: 'Next meal insight',
+      closes: 'Closes',
+      seeMoreOptions: 'See more options',
+      stillNeedToday: 'Still need today:',
+      micronutrientsLogged: 'micronutrients logged',
+      mealMicrosUnavailable: 'Micronutrients were not available for this meal',
+      updateWeight: 'Update weight',
+      currentWeightKg: 'Current weight (kg)',
+      currentGoal: 'Current goal',
+      goalAuto: 'Goal updates automatically for your mode.',
+      saveWeight: 'Save weight',
+      editMeal: 'Edit meal',
+      mealName: 'Name',
+      mealType: 'Meal type',
+      servingG: 'Serving (g)',
+      customMeal: 'Custom meal',
+    },
+    suggestions: {
+      title: 'Meal ideas',
+      remainingToday: 'remaining today',
+      filters: {
+        all: 'All',
+        quick: '< 15 min',
+        'no-cook': 'No-cook',
+        veg: 'Veg',
+      },
+      bestMatch: 'Best match',
+      alsoGood: 'Also good',
+      glImpact: 'GL impact',
+      veryLow: 'very low',
+      low: 'low',
+      moderate: 'moderate',
+      viewRecipe: 'View recipe',
+      logNow: 'Log now',
+      instructions: 'Instructions',
+      recipe: 'Recipe',
+      log: 'Log',
+      noCook: 'NO-COOK',
+      noMatches: 'No suggestions match this filter. Try "All".',
+    },
+    groceries: {
+      thisWeek: 'This week',
+      shoppingList: 'Shopping list',
+      plan: 'Plan',
+      list: 'List',
+      autoPlan: 'Auto-plan',
+      planHelper: 'Plan meals first; the shopping list is generated from this week.',
+      addMeal: 'Add meal',
+      itemsFromMeals: (items: number, meals: number) => `${items} items from ${meals} meals`,
+      checkedProgress: 'checked',
+      generatedFromMeals: (count: number) => `Generated from ${count} planned meal${count === 1 ? '' : 's'} this week.`,
+      fillWeek: 'Fill week',
+      emptyTitle: 'Your list starts with the weekly plan',
+      emptyBody: 'Add meals to the week, or let Balance fill the week with suggestions, and this list will build itself.',
+      autoPlanWeek: 'Auto-plan this week',
+      swap: 'Swap',
+      swapTitle: (slot: string) => `Swap ${slot}`,
+      topSuggestions: 'Top suggestions for you',
+      covers: 'Covers',
+      categories: {
+        produce: '🥬 Produce',
+        fish_meat: '🐟 Fish & Meat',
+        grains: '🌾 Grains & Legumes',
+        dairy: '🥛 Dairy & Eggs',
+        pantry: '🥜 Pantry',
+      },
+      slots: {
+        breakfast: 'Breakfast',
+        lunch: 'Lunch',
+        dinner: 'Dinner',
+      },
+      days: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'],
+    },
+    progress: {
+      title: 'Progress',
+      modePcos: 'PCOS Mode',
+      modeBulk: 'Bulk Mode',
+      periods: { week: 'week', month: 'month', '3m': '3m', year: 'year' },
+      weightTrend: 'Weight trend',
+      currentWeightKg: 'Current weight (kg)',
+      log: 'Log',
+      logWeightPrompt: 'Log weight entries to see your trend.',
+      thisPeriod: (period: string) => `this ${period}`,
+      cycleTracking: 'Cycle tracking',
+      untilPeriod: (days: number) => `~${days}d until period`,
+      logPeriodStart: 'Log period start',
+      trainingOverview: 'Training overview',
+      today: 'Today',
+      weeklySchedule: 'Weekly schedule',
+      onTrack: 'on track',
+      macroAdherence: 'Macro adherence (last 28 days)',
+      symptomCheckin: 'Symptom check-in — today',
+      howFeeling: 'How are you feeling?',
+      symptomsTap: 'Symptoms (tap any):',
+      saveCheckin: 'Save check-in',
+      mood: {
+        good: '😊 Good',
+        ok: '😐 OK',
+        low: '😔 Low',
+      },
+      symptoms: ['Cramps', 'Bloating', 'Acne', 'Fatigue', 'Cravings', 'Mood', 'Headache', 'Skin', 'Sleep'],
+      weekdaysShort: ['M', 'T', 'W', 'T', 'F', 'S', 'S'],
+    },
+    scanner: {
+      loadingProduct: 'Looking up product…',
+      mealLogged: 'Meal logged!',
+      scanResult: 'Scan result',
+      bulkScore: 'Bulk Score',
+      pcosScore: 'PCOS Score',
+      score: 'Score',
+      nutritionForServing: (servingG: number) => `Nutrition per ${servingG}g`,
+      productMicros: 'Micronutrients from product data',
+      productMicrosUnavailable: 'Micronutrients unavailable in this product source',
+      servingSizeG: 'Serving size (g)',
+      mealType: 'Meal type',
+      logThisMeal: 'Log This Meal',
+      manualPlaceholder: 'Search for a food…',
+      search: 'Search',
+      photoHint: 'Tap ingredients in your meal to log them',
+      pointBarcode: 'Point at a barcode',
+      startingCamera: 'Starting camera…',
+      retry: 'Retry',
+      manualEntry: 'Manual entry',
+      modes: {
+        barcode: 'Barcode',
+        photo: 'Photo',
+        manual: 'Manual',
+      },
+      quickIngredientsDone: (count: number) => `Done — ${count} ingredient${count === 1 ? '' : 's'}`,
+      quickIngredients: {
+        Rice: 'Rice',
+        Chicken: 'Chicken',
+        Salmon: 'Salmon',
+        Avocado: 'Avocado',
+        Eggs: 'Eggs',
+        Lentils: 'Lentils',
+        Quinoa: 'Quinoa',
+        'Greek Yogurt': 'Greek Yogurt',
+      },
+      errors: {
+        render: 'Camera view failed to render. Please reload.',
+        notReady: 'Camera view not ready. Please try again.',
+        denied: 'Camera access denied. Please allow camera permission in your browser settings and reload.',
+        busy: 'Camera is in use by another app. Please close it and try again.',
+        noCameraManual: 'No camera found on this device. Use manual entry instead.',
+        noCamera: 'No camera found on this device.',
+        startFailed: "Could not start camera. Make sure you're using HTTPS and camera permission is allowed.",
+        productNotFound: (barcode: string) => `Product not found for barcode ${barcode}. Try manual entry.`,
+      },
+    },
+    log: {
+      servingSize: 'Serving size',
+      defaultServing: 'Default',
+      addToLog: 'Add to log',
+      tabs: {
+        ingredients: 'Ingredients',
+        meals: 'Meals',
+        build: 'Build meal',
+        buildCount: (count: number) => `Build (${count})`,
+      },
+      searchMeals: 'Search meals…',
+      searchIngredients: 'Search ingredients…',
+      ingredientsCount: (count: number) => `Ingredients (${count})`,
+      israeliProducts: 'Israeli products',
+      recent: 'Recent',
+      allIngredients: (count: number) => `All ingredients (${count})`,
+      bundledDatabase: 'Full bundled database. Search also checks Hebrew names, tags, and categories.',
+      noIngredientsFound: (query: string) => `No ingredients found for "${query}"`,
+      results: (count: number) => (count > 0 ? `Results (${count})` : 'Results — no matches'),
+      pcosFavorites: 'PCOS Favourites',
+      bulkFavorites: 'Bulk Favourites',
+      addToMeal: 'Add to meal',
+      inThisMeal: (count: number) => `In this meal (${count} ingredient${count === 1 ? '' : 's'})`,
+      customMeal: 'Custom Meal',
+      recipeNutrition: 'Recipe nutrition',
+      defaultServingLabel: 'Default serving',
+      thisCustomMeal: (grams: number) => `${grams} g in this custom meal`,
+      mealTotals: 'Meal totals',
+      nameThisMeal: 'Name this meal (optional)',
+      logMeal: (count: number) => `Log meal (${count} ingredient${count === 1 ? '' : 's'})`,
+      buildMealEmptyTitle: 'Build a custom meal',
+      buildMealEmptyBody: 'Search for ingredients above to add them one by one.',
+      logged: 'Logged',
+      details: 'Details',
+      add: 'Add',
+      noMatches: 'no matches',
+      fullNutrition: 'Full nutrition',
+      microAvailable: (count: number) => `${count} micronutrients available`,
+      ingredientMicroUnavailable: 'Micronutrients not available for this ingredient yet',
+      itemMicroUnavailable: 'Micronutrients not available for this item yet',
+      productMicroSource: 'Micronutrients from product data',
+      productMicroUnavailable: 'Micronutrients unavailable in this product source',
+      loggedMicros: (count: number) => `${count} micronutrients logged`,
+      mealTypes: {
+        breakfast: 'Breakfast',
+        lunch: 'Lunch',
+        dinner: 'Dinner',
+        snack: 'Snack',
+        pre_workout: 'Pre-workout',
+        post_workout: 'Post-workout',
+      },
+    },
+    profile: {
+      title: 'Profile',
+      active: 'active',
+      you: 'you',
+      addProfile: 'Add profile',
+      newProfile: 'New profile',
+      createProfile: 'Create profile',
+      settings: 'Settings',
+      theme: 'Theme',
+      themes: { auto: 'AUTO', light: 'LIGHT', dark: 'DARK' },
+      language: 'Language',
+      languageLabels: {
+        en: { primary: 'English', secondary: 'Hebrew everywhere', cta: 'Switch to Hebrew' },
+        he: { primary: 'עברית', secondary: 'אנגלית בכל מקום', cta: 'Switch to English' },
+      },
+      mode: 'Mode',
+      aboutMode: (mode: string) => `About ${mode} mode`,
+      pcosProfile: 'PCOS Profile',
+      primaryConcerns: 'Primary concerns',
+      primaryFocus: 'Primary focus',
+      phaseAware: 'Phase-aware suggestions',
+      seedCycling: 'Seed cycling reminders',
+      trainingSchedule: 'Training schedule',
+      trainingHelper: 'Tap to toggle training / rest days',
+      calorieSurplus: 'Calorie surplus',
+      proteinTarget: 'Protein target',
+      supplements: 'Supplements',
+      bodyMetrics: 'Body metrics',
+      sex: 'Sex',
+      age: 'Age',
+      heightCm: 'Height (cm)',
+      weightKg: 'Weight (kg)',
+      goalWeightKg: 'Goal weight (kg)',
+      goalWeightTip: 'Tip: update your goal weight to align with your current plan.',
+      activityLevel: 'Activity level',
+      recalcInstant: 'All targets recalculate instantly when you update these values.',
+      dailyTargets: 'Daily targets (auto-computed)',
+      howCalculated: 'How your calories were calculated',
+      fullDetails: 'Full details',
+      maintenance: 'TDEE (maintenance)',
+      deficit: 'Deficit (−300 kcal)',
+      adjustment: 'Adjustment',
+      symptomManagement: 'Adjustment (symptom management)',
+      surplus: 'Surplus',
+      dailyTarget: 'Daily target',
+      dietaryPreferences: 'Dietary preferences',
+      household: 'Household',
+      data: 'Data',
+      exportCsv: 'Export food log to CSV',
+      exportAi: 'Export for AI review (JSON)',
+      importCsv: 'Import from CSV',
+      resetData: 'Reset all data',
+      about: 'Goal-aware nutrition tracking',
+      importPending: (fileName: string) => `Import from "${fileName}" — parsing not yet implemented. Export your data first and re-import is coming soon.`,
+      deleteNeedOne: 'You need at least one profile.',
+      deleteConfirm: (name: string) => `Delete profile "${name}"? This cannot be undone.`,
+      resetConfirm: 'Reset all food log and weight history for this profile? This cannot be undone.',
+      sections: {
+        pcos: 'PCOS Mode',
+        bulk: 'Bulk Mode',
+        maintain: 'Maintain',
+      },
+      concerns: ['Insulin resistance', 'Weight', 'Hirsutism', 'Acne', 'Fertility', 'Irregular cycles'],
+      dietaryFlags: ['Vegetarian', 'Vegan', 'Gluten-free', 'Dairy-limited', 'Nut-free'],
+      supplementsList: ['Creatine 5g daily', 'Whey protein', 'Fish oil', 'Vitamin D', 'Inositol'],
+      activities: {
+        sedentary: 'Sedentary',
+        light: 'Lightly active',
+        moderate: 'Moderately active',
+        active: 'Active',
+        very_active: 'Very active',
+      },
+      planInfo: {
+        pcos: {
+          title: 'PCOS Mode',
+          subtitle: 'Supports insulin sensitivity & hormone balance',
+          bullet4: 'Phase-aware meals align macros with your menstrual cycle',
+          bullet5: 'Daily fiber (30g) and omega-3 (3g) targets help reduce inflammation',
+        },
+        bulk: {
+          title: 'Bulk Mode',
+          subtitle: 'Maximizes lean muscle growth',
+          bullet4: 'Training days: +150 kcal with extra carbs for performance',
+          bullet5: 'Rest days: −150 kcal to minimize fat accumulation',
+        },
+        maintain: {
+          title: 'Maintain Mode',
+          subtitle: 'Keeps weight stable with balanced nutrition',
+          bullet2: 'No deficit or surplus — calories match what you burn',
+          bullet4: 'Balanced macros (30% fat, ~50% carbs) support energy and long-term health',
+          bullet5: 'Focus on food quality and consistency rather than restriction',
+        },
+        recalc: 'Targets recalculate automatically when you update your body metrics.',
+      },
+      science: {
+        title: 'How targets are calculated',
+        subtitle: 'Evidence-based formulas',
+        step1: 'Step 1 — Basal Metabolic Rate (BMR)',
+        step1Note: 'Sex constant: male +5 · female −161 · other −78 (average of male/female)',
+        step2: 'Step 2 — Total Daily Energy Expenditure (TDEE)',
+        currentUser: 'you',
+        step3: 'Step 3 — Macro targets',
+        calories: 'Calories',
+        protein: 'Protein',
+        fat: 'Fat',
+        carbs: 'Carbs',
+        fiber: 'Fiber',
+        omega3: 'Omega-3',
+        references: 'References',
+      },
+    },
+    nutrition: {
+      per100g: 'Per 100 g',
+      perServing: 'Per serving',
+      micros: (count: number) => `${count} micros`,
+      macrosOnly: 'Macros only',
+      coreNutrition: 'Core nutrition',
+      micronutrients: 'Micronutrients',
+      nutrients: {
+        calories: 'Calories',
+        protein: 'Protein',
+        carbs: 'Carbs',
+        fiber: 'Fiber',
+        sugar: 'Sugar',
+        fat: 'Fat',
+        satFat: 'Sat. fat',
+        sodium: 'Sodium',
+        gi: 'GI',
+        gl: 'GL',
+        omega3: 'Omega-3',
+        iron: 'Iron',
+        calcium: 'Calcium',
+        magnesium: 'Magnesium',
+        potassium: 'Potassium',
+        zinc: 'Zinc',
+        vitaminD: 'Vitamin D',
+        vitaminB12: 'Vitamin B12',
+        folate: 'Folate',
+        vitaminC: 'Vitamin C',
+      },
+    },
+    gaps: {
+      allOnTrack: 'All targets on track',
+      needed: 'needed',
+      low: 'low',
+      remaining: 'remaining',
+      used: 'used',
+    },
+    phases: {
+      names: {
+        menstrual: 'Menstrual Phase',
+        follicular: 'Follicular Phase',
+        ovulatory: 'Ovulatory Phase',
+        luteal: 'Luteal Phase',
+      },
+      short: {
+        menstrual: 'Menstrual',
+        follicular: 'Follicular',
+        ovulatory: 'Ovulatory',
+        luteal: 'Luteal',
+      },
+      briefs: {
+        menstrual: {
+          priorities: ['Iron-rich foods', 'Anti-inflammatory omega-3', 'Magnesium sources', 'Vitamin C (enhances iron absorption)'],
+          limits: ['Caffeine', 'Alcohol', 'Excess sodium (bloating)'],
+          seedCycling: 'Flaxseeds + Pumpkin seeds (1 tbsp each daily)',
+        },
+        follicular: {
+          priorities: ['High protein for building', 'Fermented foods (gut health)', 'Zinc sources', 'B vitamins'],
+          limits: ['Heavy meals', 'Excess fat'],
+          seedCycling: 'Flaxseeds + Pumpkin seeds (1 tbsp each daily)',
+        },
+        ovulatory: {
+          priorities: ['Antioxidants', 'Cruciferous vegetables', 'Fiber-rich foods', 'Glutathione boosters'],
+          limits: ['Excess estrogen foods', 'Processed foods'],
+          seedCycling: 'Sesame seeds + Sunflower seeds (1 tbsp each daily)',
+        },
+        luteal: {
+          priorities: ['Complex carbohydrates', 'Magnesium (dark chocolate, nuts)', 'Vitamin B6', 'Calcium-rich foods'],
+          limits: ['High-GL foods', 'Excess sugar', 'Caffeine'],
+          seedCycling: 'Sesame seeds + Sunflower seeds (1 tbsp each daily)',
+        },
+      },
+    },
+  },
+  he: {
+    common: {
+      add: 'הוספה',
+      all: 'הכול',
+      carbs: 'פחמימות',
+      calories: 'קלוריות',
+      close: 'סגירה',
+      continue: 'המשך',
+      details: 'פרטים',
+      done: 'סיום',
+      fat: 'שומן',
+      fiber: 'סיבים',
+      fullNutrition: 'ערכים מלאים',
+      ingredients: 'מרכיבים',
+      kcal: 'קק"ל',
+      meals: 'ארוחות',
+      micronutrients: 'מיקרונוטריינטים',
+      omega3: 'אומגה 3',
+      protein: 'חלבון',
+      save: 'שמירה',
+      search: 'חיפוש',
+      sugar: 'סוכר',
+      weight: 'משקל',
+    },
+    nav: {
+      home: 'בית',
+      meals: 'ארוחות',
+      grocery: 'קניות',
+      profile: 'פרופיל',
+    },
+    onboarding: {
+      welcome: 'ברוכים הבאים ל-Balance',
+      subtitle: 'מעקב תזונה שמותאם לגוף ולמטרות שלך.',
+      nameLabel: 'השם שלך (לא חובה)',
+      namePlaceholder: 'השם שלך',
+      continue: 'המשך',
+      goalTitle: 'מה המטרה שלך?',
+      goalSubtitle: 'Balance תתאים את כל החוויה למצב שלך. אפשר לשנות זאת בכל רגע.',
+      pcosFocusTitle: 'מה המיקוד העיקרי שלך עם PCOS?',
+      quickStats: 'נתונים מהירים',
+      quickStatsSubtitle: 'הם משמשים לחישוב היעדים היומיים שלך. אפשר לעדכן אותם בהמשך בפרופיל.',
+      sex: 'מין',
+      age: 'גיל',
+      weightKg: 'משקל (ק"ג)',
+      heightCm: 'גובה (ס"מ)',
+      allOptional: 'כל השדות אופציונליים — אפשר לדלג ולעדכן אחר כך.',
+      startUsing: 'להתחיל להשתמש ב-Balance',
+      skipForNow: 'לדלג כרגע',
+      skip: 'דלג',
+      modeCards: {
+        pcos: {
+          title: 'PCOS',
+          subtitle: 'תמיכה הורמונלית ומחזורית',
+          bullets: ['תזונה לפי שלב המחזור', 'מיקוד גליקמי נמוך', 'ארוחות אנטי-דלקתיות', 'מעקב אומגה 3 וסיבים'],
+        },
+        bulk: {
+          title: 'מסה',
+          subtitle: 'שריר וביצועים',
+          bullets: ['יעדי חלבון גבוהים', 'קלוריות לימי אימון ומנוחה', 'עודף קלורי מדורג', 'מעקב תוספים'],
+        },
+        maintain: {
+          title: 'שמירה',
+          subtitle: 'מאוזן ובר-קיימא',
+          bullets: ['מאקרו מאוזנים', 'שמירה על משקל', 'מטרות גמישות', 'בריאות כללית'],
+        },
+      },
+      pcosGoals: {
+        lose_weight: {
+          label: 'ירידה במשקל',
+          description: 'גרעון מתון של 300 קלוריות עם חלבון גבוה לשמירה על השריר',
+        },
+        manage_symptoms: {
+          label: 'איזון תסמינים',
+          description: 'קלוריות תחזוקה לתמיכה באיזון הורמונלי',
+        },
+      },
+    },
+    dashboard: {
+      greetings: {
+        morning: 'בוקר טוב',
+        afternoon: 'צהריים טובים',
+        evening: 'ערב טוב',
+      },
+      estimate: 'הערכה',
+      training: 'אימון',
+      trainingDay: 'יום אימון',
+      restDay: 'יום מנוחה',
+      day: 'יום',
+      weightCheckIn: 'עדכון משקל',
+      goal: 'יעד',
+      todaysMeals: 'הארוחות של היום',
+      noMeals: 'עדיין לא נרשמו ארוחות.',
+      logFirstMeal: 'לרשום את הארוחה הראשונה',
+      trainingSuggestion: 'הצעה ליום אימון',
+      nextMealInsight: 'תובנה לארוחה הבאה',
+      closes: 'סוגר',
+      seeMoreOptions: 'לראות עוד אפשרויות',
+      stillNeedToday: 'עדיין חסר היום:',
+      micronutrientsLogged: 'מיקרונוטריינטים תועדו',
+      mealMicrosUnavailable: 'לא היו זמינים מיקרונוטריינטים עבור הארוחה הזו',
+      updateWeight: 'עדכון משקל',
+      currentWeightKg: 'משקל נוכחי (ק"ג)',
+      currentGoal: 'היעד הנוכחי',
+      goalAuto: 'היעד מתעדכן אוטומטית לפי המצב שלך.',
+      saveWeight: 'שמירת משקל',
+      editMeal: 'עריכת ארוחה',
+      mealName: 'שם',
+      mealType: 'סוג ארוחה',
+      servingG: 'מנה (גרם)',
+      customMeal: 'ארוחה מותאמת',
+    },
+    suggestions: {
+      title: 'רעיונות לארוחות',
+      remainingToday: 'נותרו להיום',
+      filters: {
+        all: 'הכול',
+        quick: 'מתחת ל-15 דק׳',
+        'no-cook': 'בלי בישול',
+        veg: 'צמחוני',
+      },
+      bestMatch: 'ההתאמה הטובה ביותר',
+      alsoGood: 'עוד אפשרויות טובות',
+      glImpact: 'השפעת עומס גליקמי',
+      veryLow: 'נמוך מאוד',
+      low: 'נמוך',
+      moderate: 'בינוני',
+      viewRecipe: 'לצפות במתכון',
+      logNow: 'לרשום עכשיו',
+      instructions: 'הוראות הכנה',
+      recipe: 'מתכון',
+      log: 'רישום',
+      noCook: 'ללא בישול',
+      noMatches: 'אין הצעות שמתאימות למסנן הזה. נסו "הכול".',
+    },
+    groceries: {
+      thisWeek: 'השבוע',
+      shoppingList: 'רשימת קניות',
+      plan: 'תכנון',
+      list: 'רשימה',
+      autoPlan: 'תכנון אוטומטי',
+      planHelper: 'קודם מתכננים ארוחות; רשימת הקניות נוצרת מהשבוע הזה.',
+      addMeal: 'הוספת ארוחה',
+      itemsFromMeals: (items: number, meals: number) => `${items} פריטים מתוך ${meals} ארוחות`,
+      checkedProgress: 'סומנו',
+      generatedFromMeals: (count: number) => `נוצר מתוך ${count} ארוחות מתוכננות השבוע.`,
+      fillWeek: 'למלא את השבוע',
+      emptyTitle: 'הרשימה שלך מתחילה מתכנון השבוע',
+      emptyBody: 'הוסיפו ארוחות לשבוע, או תנו ל-Balance למלא את השבוע בהצעות, והרשימה תיבנה לבד.',
+      autoPlanWeek: 'לתכנן את השבוע אוטומטית',
+      swap: 'החלפה',
+      swapTitle: (slot: string) => `החלפת ${slot}`,
+      topSuggestions: 'ההצעות המובילות עבורך',
+      covers: 'מכסה',
+      categories: {
+        produce: '🥬 ירקות ופירות',
+        fish_meat: '🐟 דגים ובשר',
+        grains: '🌾 דגנים וקטניות',
+        dairy: '🥛 חלב וביצים',
+        pantry: '🥜 מזווה',
+      },
+      slots: {
+        breakfast: 'בוקר',
+        lunch: 'צהריים',
+        dinner: 'ערב',
+      },
+      days: ['ב׳', 'ג׳', 'ד׳', 'ה׳', 'ו׳', 'ש׳', 'א׳'],
+    },
+    progress: {
+      title: 'התקדמות',
+      modePcos: 'מצב PCOS',
+      modeBulk: 'מצב מסה',
+      periods: { week: 'שבוע', month: 'חודש', '3m': '3 ח׳', year: 'שנה' },
+      weightTrend: 'מגמת משקל',
+      currentWeightKg: 'משקל נוכחי (ק"ג)',
+      log: 'רישום',
+      logWeightPrompt: 'הוסיפו מדידות משקל כדי לראות מגמה.',
+      thisPeriod: (period: string) => `ב${period} הזה`,
+      cycleTracking: 'מעקב מחזור',
+      untilPeriod: (days: number) => `כ-${days} ימים עד הווסת`,
+      logPeriodStart: 'לרשום תחילת וסת',
+      trainingOverview: 'סקירת אימונים',
+      today: 'היום',
+      weeklySchedule: 'לוח שבועי',
+      onTrack: 'במסלול',
+      macroAdherence: 'עמידה ביעדים (28 הימים האחרונים)',
+      symptomCheckin: 'צ׳ק-אין תסמינים — היום',
+      howFeeling: 'איך את מרגישה?',
+      symptomsTap: 'תסמינים (אפשר לבחור כמה):',
+      saveCheckin: 'שמירת צ׳ק-אין',
+      mood: {
+        good: '😊 טוב',
+        ok: '😐 סביר',
+        low: '😔 נמוך',
+      },
+      symptoms: ['כאבים', 'נפיחות', 'אקנה', 'עייפות', 'חשקים', 'מצב רוח', 'כאב ראש', 'עור', 'שינה'],
+      weekdaysShort: ['ב', 'ג', 'ד', 'ה', 'ו', 'ש', 'א'],
+    },
+    scanner: {
+      loadingProduct: 'מחפש את המוצר…',
+      mealLogged: 'הארוחה נרשמה!',
+      scanResult: 'תוצאת סריקה',
+      bulkScore: 'ציון מסה',
+      pcosScore: 'ציון PCOS',
+      score: 'ציון',
+      nutritionForServing: (servingG: number) => `ערכים תזונתיים ל-${servingG} גרם`,
+      productMicros: 'מיקרונוטריינטים מתוך נתוני המוצר',
+      productMicrosUnavailable: 'מיקרונוטריינטים לא זמינים במקור המוצר הזה',
+      servingSizeG: 'גודל מנה (גרם)',
+      mealType: 'סוג ארוחה',
+      logThisMeal: 'לרשום את הארוחה',
+      manualPlaceholder: 'חיפוש מזון…',
+      search: 'חיפוש',
+      photoHint: 'הקישו על המרכיבים בארוחה כדי לרשום אותם',
+      pointBarcode: 'כוונו אל הברקוד',
+      startingCamera: 'מצלמה מתחילה לפעול…',
+      retry: 'לנסות שוב',
+      manualEntry: 'הזנה ידנית',
+      modes: {
+        barcode: 'ברקוד',
+        photo: 'צילום',
+        manual: 'ידני',
+      },
+      quickIngredientsDone: (count: number) => `סיום — ${count} מרכיבים`,
+      quickIngredients: {
+        Rice: 'אורז',
+        Chicken: 'עוף',
+        Salmon: 'סלמון',
+        Avocado: 'אבוקדו',
+        Eggs: 'ביצים',
+        Lentils: 'עדשים',
+        Quinoa: 'קינואה',
+        'Greek Yogurt': 'יוגורט יווני',
+      },
+      errors: {
+        render: 'תצוגת המצלמה לא נטענה. נסו לרענן.',
+        notReady: 'המצלמה עדיין לא מוכנה. נסו שוב.',
+        denied: 'הגישה למצלמה נחסמה. אשרו הרשאת מצלמה בדפדפן ורעננו.',
+        busy: 'המצלמה בשימוש באפליקציה אחרת. סגרו אותה ונסו שוב.',
+        noCameraManual: 'לא נמצאה מצלמה במכשיר הזה. אפשר לעבור להזנה ידנית.',
+        noCamera: 'לא נמצאה מצלמה במכשיר הזה.',
+        startFailed: 'לא ניתן היה להפעיל את המצלמה. ודאו שאתם משתמשים ב-HTTPS ושאושרה הרשאת מצלמה.',
+        productNotFound: (barcode: string) => `לא נמצא מוצר עבור הברקוד ${barcode}. נסו הזנה ידנית.`,
+      },
+    },
+    log: {
+      servingSize: 'גודל מנה',
+      defaultServing: 'ברירת מחדל',
+      addToLog: 'הוספה ליומן',
+      tabs: {
+        ingredients: 'מרכיבים',
+        meals: 'ארוחות',
+        build: 'בניית ארוחה',
+        buildCount: (count: number) => `בנייה (${count})`,
+      },
+      searchMeals: 'חיפוש ארוחות…',
+      searchIngredients: 'חיפוש מרכיבים…',
+      ingredientsCount: (count: number) => `מרכיבים (${count})`,
+      israeliProducts: 'מוצרים ישראליים',
+      recent: 'אחרונים',
+      allIngredients: (count: number) => `כל המרכיבים (${count})`,
+      bundledDatabase: 'מאגר מובנה מלא. החיפוש בודק גם שמות בעברית, תגיות וקטגוריות.',
+      noIngredientsFound: (query: string) => `לא נמצאו מרכיבים עבור "${query}"`,
+      results: (count: number) => (count > 0 ? `תוצאות (${count})` : 'תוצאות — ללא התאמות'),
+      pcosFavorites: 'מועדפי PCOS',
+      bulkFavorites: 'מועדפי מסה',
+      addToMeal: 'הוספה לארוחה',
+      inThisMeal: (count: number) => `בארוחה הזו (${count} מרכיבים)`,
+      customMeal: 'ארוחה מותאמת',
+      recipeNutrition: 'ערכי המתכון',
+      defaultServingLabel: 'מנה ברירת מחדל',
+      thisCustomMeal: (grams: number) => `${grams} גרם בארוחה המותאמת הזו`,
+      mealTotals: 'סך הכול בארוחה',
+      nameThisMeal: 'שם לארוחה (אופציונלי)',
+      logMeal: (count: number) => `רישום ארוחה (${count} מרכיבים)`,
+      buildMealEmptyTitle: 'בניית ארוחה מותאמת',
+      buildMealEmptyBody: 'חפשו מרכיבים למעלה כדי להוסיף אותם אחד-אחד.',
+      logged: 'נרשם',
+      details: 'פרטים',
+      add: 'הוספה',
+      noMatches: 'ללא התאמות',
+      fullNutrition: 'ערכים מלאים',
+      microAvailable: (count: number) => `${count} מיקרונוטריינטים זמינים`,
+      ingredientMicroUnavailable: 'מיקרונוטריינטים עדיין לא זמינים עבור המרכיב הזה',
+      itemMicroUnavailable: 'מיקרונוטריינטים עדיין לא זמינים עבור הפריט הזה',
+      productMicroSource: 'מיקרונוטריינטים מתוך נתוני המוצר',
+      productMicroUnavailable: 'מיקרונוטריינטים לא זמינים במקור המוצר הזה',
+      loggedMicros: (count: number) => `${count} מיקרונוטריינטים תועדו`,
+      mealTypes: {
+        breakfast: 'בוקר',
+        lunch: 'צהריים',
+        dinner: 'ערב',
+        snack: 'נשנוש',
+        pre_workout: 'לפני אימון',
+        post_workout: 'אחרי אימון',
+      },
+    },
+    profile: {
+      title: 'פרופיל',
+      active: 'פעיל',
+      you: 'את/ה',
+      addProfile: 'הוספת פרופיל',
+      newProfile: 'פרופיל חדש',
+      createProfile: 'יצירת פרופיל',
+      settings: 'הגדרות',
+      theme: 'ערכת נושא',
+      themes: { auto: 'אוטומטי', light: 'בהיר', dark: 'כהה' },
+      language: 'שפה',
+      languageLabels: {
+        en: { primary: 'English', secondary: 'עברית בכל האפליקציה', cta: 'לעבור לעברית' },
+        he: { primary: 'עברית', secondary: 'English everywhere', cta: 'Switch to English' },
+      },
+      mode: 'מצב',
+      aboutMode: (mode: string) => `על מצב ${mode}`,
+      pcosProfile: 'פרופיל PCOS',
+      primaryConcerns: 'נושאים מרכזיים',
+      primaryFocus: 'מיקוד עיקרי',
+      phaseAware: 'הצעות לפי שלב המחזור',
+      seedCycling: 'תזכורות למחזור זרעים',
+      trainingSchedule: 'לוח אימונים',
+      trainingHelper: 'הקישו כדי לעבור בין יום אימון ליום מנוחה',
+      calorieSurplus: 'עודף קלורי',
+      proteinTarget: 'יעד חלבון',
+      supplements: 'תוספים',
+      bodyMetrics: 'נתוני גוף',
+      sex: 'מין',
+      age: 'גיל',
+      heightCm: 'גובה (ס"מ)',
+      weightKg: 'משקל (ק"ג)',
+      goalWeightKg: 'משקל יעד (ק"ג)',
+      goalWeightTip: 'טיפ: עדכנו את משקל היעד כך שיתאים לתכנית הנוכחית שלכם.',
+      activityLevel: 'רמת פעילות',
+      recalcInstant: 'כל היעדים מתחשבים מיד בערכים החדשים שאתם מזינים.',
+      dailyTargets: 'יעדים יומיים (מחושבים אוטומטית)',
+      howCalculated: 'איך הקלוריות חושבו',
+      fullDetails: 'פירוט מלא',
+      maintenance: 'TDEE (תחזוקה)',
+      deficit: 'גרעון (300− קק"ל)',
+      adjustment: 'התאמה',
+      symptomManagement: 'התאמה (איזון תסמינים)',
+      surplus: 'עודף',
+      dailyTarget: 'יעד יומי',
+      dietaryPreferences: 'העדפות תזונתיות',
+      household: 'בית',
+      data: 'נתונים',
+      exportCsv: 'ייצוא יומן האוכל ל-CSV',
+      exportAi: 'ייצוא לבדיקת AI (JSON)',
+      importCsv: 'ייבוא מ-CSV',
+      resetData: 'איפוס כל הנתונים',
+      about: 'מעקב תזונה מותאם מטרה',
+      importPending: (fileName: string) => `ייבוא מתוך "${fileName}" — הפענוח עדיין לא מוכן. בינתיים אפשר לייצא, וייבוא מלא יגיע בקרוב.`,
+      deleteNeedOne: 'צריך להישאר לפחות פרופיל אחד.',
+      deleteConfirm: (name: string) => `למחוק את הפרופיל "${name}"? אי אפשר לבטל את הפעולה הזו.`,
+      resetConfirm: 'לאפס את יומן האוכל ואת היסטוריית המשקל של הפרופיל הזה? אי אפשר לבטל.',
+      sections: {
+        pcos: 'מצב PCOS',
+        bulk: 'מצב מסה',
+        maintain: 'שמירה',
+      },
+      concerns: ['עמידות לאינסולין', 'משקל', 'שיעור יתר', 'אקנה', 'פוריות', 'מחזורים לא סדירים'],
+      dietaryFlags: ['צמחוני', 'טבעוני', 'ללא גלוטן', 'מופחת חלב', 'ללא אגוזים'],
+      supplementsList: ['קריאטין 5 גרם ביום', 'אבקת חלבון', 'שמן דגים', 'ויטמין D', 'אינוזיטול'],
+      activities: {
+        sedentary: 'יושבני',
+        light: 'פעילות קלה',
+        moderate: 'פעילות בינונית',
+        active: 'פעיל',
+        very_active: 'פעיל מאוד',
+      },
+      planInfo: {
+        pcos: {
+          title: 'מצב PCOS',
+          subtitle: 'תומך ברגישות לאינסולין ובאיזון הורמונלי',
+          bullet4: 'ארוחות מותאמות שלב מחזור כדי ליישר את המאקרו עם המחזור',
+          bullet5: 'יעדי סיבים (30 גרם) ואומגה 3 (3 גרם) מסייעים להפחתת דלקת',
+        },
+        bulk: {
+          title: 'מצב מסה',
+          subtitle: 'ממקסם עלייה במסת שריר רזה',
+          bullet4: 'ימי אימון: תוספת של 150 קק"ל ויותר פחמימות לביצועים',
+          bullet5: 'ימי מנוחה: 150 קק"ל פחות כדי לצמצם צבירת שומן',
+        },
+        maintain: {
+          title: 'מצב שמירה',
+          subtitle: 'שומר על משקל יציב עם תזונה מאוזנת',
+          bullet2: 'אין גרעון או עודף — הקלוריות תואמות למה שהגוף שורף',
+          bullet4: 'מאקרו מאוזנים (30% שומן וכ-50% פחמימות) תומכים באנרגיה ובבריאות',
+          bullet5: 'המיקוד הוא באיכות המזון ובעקביות, לא בהגבלה',
+        },
+        recalc: 'היעדים מחושבים מחדש אוטומטית כשמעדכנים את נתוני הגוף.',
+      },
+      science: {
+        title: 'איך היעדים מחושבים',
+        subtitle: 'נוסחאות מבוססות ראיות',
+        step1: 'שלב 1 — קצב חילוף חומרים בסיסי (BMR)',
+        step1Note: 'קבוע מין: זכר +5 · נקבה −161 · אחר −78 (ממוצע בין זכר לנקבה)',
+        step2: 'שלב 2 — הוצאה אנרגטית יומית כוללת (TDEE)',
+        currentUser: 'את/ה',
+        step3: 'שלב 3 — יעדי מאקרו',
+        calories: 'קלוריות',
+        protein: 'חלבון',
+        fat: 'שומן',
+        carbs: 'פחמימות',
+        fiber: 'סיבים',
+        omega3: 'אומגה 3',
+        references: 'מקורות',
+      },
+    },
+    nutrition: {
+      per100g: 'ל-100 גרם',
+      perServing: 'למנה',
+      micros: (count: number) => `${count} מיקרו`,
+      macrosOnly: 'מאקרו בלבד',
+      coreNutrition: 'ערכי בסיס',
+      micronutrients: 'מיקרונוטריינטים',
+      nutrients: {
+        calories: 'קלוריות',
+        protein: 'חלבון',
+        carbs: 'פחמימות',
+        fiber: 'סיבים',
+        sugar: 'סוכר',
+        fat: 'שומן',
+        satFat: 'שומן רווי',
+        sodium: 'נתרן',
+        gi: 'GI',
+        gl: 'GL',
+        omega3: 'אומגה 3',
+        iron: 'ברזל',
+        calcium: 'סידן',
+        magnesium: 'מגנזיום',
+        potassium: 'אשלגן',
+        zinc: 'אבץ',
+        vitaminD: 'ויטמין D',
+        vitaminB12: 'ויטמין B12',
+        folate: 'פולאט',
+        vitaminC: 'ויטמין C',
+      },
+    },
+    gaps: {
+      allOnTrack: 'כל היעדים במסלול',
+      needed: 'נדרש',
+      low: 'נמוך',
+      remaining: 'נותר',
+      used: 'נוצל',
+    },
+    phases: {
+      names: {
+        menstrual: 'השלב הווסתי',
+        follicular: 'השלב הפוליקולרי',
+        ovulatory: 'שלב הביוץ',
+        luteal: 'השלב הלוטאלי',
+      },
+      short: {
+        menstrual: 'וסת',
+        follicular: 'פוליקולרי',
+        ovulatory: 'ביוץ',
+        luteal: 'לוטאלי',
+      },
+      briefs: {
+        menstrual: {
+          priorities: ['מזונות עשירים בברזל', 'אומגה 3 אנטי-דלקתית', 'מקורות מגנזיום', 'ויטמין C (משפר ספיגת ברזל)'],
+          limits: ['קפאין', 'אלכוהול', 'עודף נתרן (נפיחות)'],
+          seedCycling: 'זרעי פשתן + זרעי דלעת (כף מכל אחד מדי יום)',
+        },
+        follicular: {
+          priorities: ['חלבון גבוה לבנייה', 'מזונות מותססים (בריאות מעי)', 'מקורות אבץ', 'ויטמיני B'],
+          limits: ['ארוחות כבדות', 'עודף שומן'],
+          seedCycling: 'זרעי פשתן + זרעי דלעת (כף מכל אחד מדי יום)',
+        },
+        ovulatory: {
+          priorities: ['נוגדי חמצון', 'ירקות מצליבים', 'מזונות עשירים בסיבים', 'מעודדי גלוטתיון'],
+          limits: ['עודף מזונות מעודדי אסטרוגן', 'מזון מעובד'],
+          seedCycling: 'שומשום + גרעיני חמנייה (כף מכל אחד מדי יום)',
+        },
+        luteal: {
+          priorities: ['פחמימות מורכבות', 'מגנזיום (שוקולד מריר, אגוזים)', 'ויטמין B6', 'מזונות עשירים בסידן'],
+          limits: ['מזונות עם עומס גליקמי גבוה', 'עודף סוכר', 'קפאין'],
+          seedCycling: 'שומשום + גרעיני חמנייה (כף מכל אחד מדי יום)',
+        },
+      },
+    },
+  },
+} as const;
+
+const MICRO_LABELS = {
+  iron_mg: { en: 'Iron', he: 'ברזל' },
+  calcium_mg: { en: 'Calcium', he: 'סידן' },
+  magnesium_mg: { en: 'Magnesium', he: 'מגנזיום' },
+  potassium_mg: { en: 'Potassium', he: 'אשלגן' },
+  zinc_mg: { en: 'Zinc', he: 'אבץ' },
+  vitamin_d_mcg: { en: 'Vitamin D', he: 'ויטמין D' },
+  vitamin_b12_mcg: { en: 'Vitamin B12', he: 'ויטמין B12' },
+  folate_mcg: { en: 'Folate', he: 'פולאט' },
+  vitamin_c_mg: { en: 'Vitamin C', he: 'ויטמין C' },
+} as const;
+
+const FOOD_NAME_TRANSLATIONS: Record<string, { he: string }> = {
+  'Mackerel fillet': { he: 'פילה מקרל' },
+  Lentils: { he: 'עדשים' },
+  Kale: { he: 'קייל' },
+  Lemon: { he: 'לימון' },
+  'Greek yogurt': { he: 'יוגורט יווני' },
+  'Mixed berries': { he: 'פירות יער' },
+  'Chia seeds': { he: 'זרעי צ׳יה' },
+  'Salmon fillet': { he: 'פילה סלמון' },
+  Quinoa: { he: 'קינואה' },
+  Cucumber: { he: 'מלפפון' },
+  Avocado: { he: 'אבוקדו' },
+  Sardines: { he: 'סרדינים' },
+  'Rye bread': { he: 'לחם שיפון' },
+  Tomato: { he: 'עגבנייה' },
+  'Feta cheese': { he: 'גבינת פטה' },
+  'Cherry tomatoes': { he: 'עגבניות שרי' },
+  'Chicken breast': { he: 'חזה עוף' },
+  Rice: { he: 'אורז' },
+  Broccoli: { he: 'ברוקולי' },
+  'Ground beef': { he: 'בשר בקר טחון' },
+  'Bell peppers': { he: 'פלפלים' },
+  Zucchini: { he: 'קישוא' },
+  'Rolled oats': { he: 'שיבולת שועל' },
+  'Whey protein': { he: 'אבקת חלבון' },
+  Banana: { he: 'בננה' },
+  Walnuts: { he: 'אגוזי מלך' },
+  'Cottage cheese': { he: 'גבינת קוטג׳' },
+  Chicken: { he: 'עוף' },
+  Salmon: { he: 'סלמון' },
+  Eggs: { he: 'ביצים' },
+  'Greek Yogurt': { he: 'יוגורט יווני' },
+};
+
+const MEAL_TRANSLATIONS: Record<string, { nameHe: string; instructionsHe?: string[] }> = {
+  'grilled-mackerel-lentils': {
+    nameHe: 'מקרל צלוי עם עדשים וקייל',
+    instructionsHe: [
+      'מתבלים את פילה המקרל בלימון, שום ועשבי תיבול.',
+      'צולים כ-4 דקות מכל צד.',
+      'מבשלים עדשים עם עלה דפנה עד לריכוך.',
+      'מקפיצים קייל עם שמן זית ושום.',
+      'מגישים מעל העדשים ומוסיפים את הקייל.',
+    ],
+  },
+  'greek-yogurt-berries-chia': {
+    nameHe: 'יוגורט יווני עם פירות יער וצ׳יה',
+    instructionsHe: [
+      'מניחים יוגורט יווני בקערה.',
+      'מוסיפים פירות יער מעורבים.',
+      'מפזרים זרעי צ׳יה ואפשר גם מעט דבש.',
+    ],
+  },
+  'quinoa-salmon-bowl': {
+    nameHe: 'קערת קינואה וסלמון',
+    instructionsHe: [
+      'מבשלים קינואה לפי הוראות האריזה.',
+      'מתבלים את הסלמון במלח, פלפל וגרידת לימון.',
+      'צורבים את הסלמון 3–4 דקות מכל צד.',
+      'מגישים מעל הקינואה עם מלפפון, אבוקדו ורוטב סויה-ג׳ינג׳ר.',
+    ],
+  },
+  'sardines-on-rye': {
+    nameHe: 'סרדינים על לחם שיפון',
+    instructionsHe: [
+      'קולים פרוסות לחם שיפון.',
+      'מסננים את הסרדינים ומועכים קלות.',
+      'מניחים מעל עגבנייה, בצל סגול וצלפים.',
+      'מסיימים עם מיץ לימון ושמיר.',
+    ],
+  },
+  'lentil-feta-salad': {
+    nameHe: 'סלט עדשים ופטה',
+    instructionsHe: [
+      'מבשלים עדשים ירוקות עד לריכוך.',
+      'מערבבים עם פטה מפוררת, עגבניות שרי, מלפפון ובצל סגול.',
+      'מתבלים בשמן זית, מיץ לימון ואורגנו.',
+    ],
+  },
+  'chicken-rice-bowl': {
+    nameHe: 'קערת עוף ואורז',
+    instructionsHe: [
+      'מבשלים אורז יסמין או בסמטי.',
+      'מתבלים וצולים חזה עוף עד שהוא מוכן.',
+      'פורסים את העוף ומגישים מעל האורז עם ברוקולי מאודה.',
+      'מוסיפים רוטב טריאקי או סויה-ג׳ינג׳ר.',
+    ],
+  },
+  'ground-beef-rice-veg': {
+    nameHe: 'בקר טחון עם אורז וירקות',
+    instructionsHe: [
+      'משחימים בקר טחון עם שום ובצל.',
+      'מבשלים אורז בנפרד.',
+      'מקפיצים פלפלים וקישואים.',
+      'מאחדים ומתבלים במלח, פלפל ופפריקה.',
+    ],
+  },
+  'oats-whey-banana': {
+    nameHe: 'שיבולת שועל עם חלבון ובננה',
+  },
+  'chia-pudding-berries': {
+    nameHe: 'פודינג צ׳יה עם פירות יער',
+  },
+  'cottage-cheese-berries': {
+    nameHe: 'קוטג׳ עם פירות יער',
+  },
+};
+
+export function useI18n() {
+  const language = useAppStore((s) => s.appSettings.language) as AppLanguage;
+  const isRTL = language === 'he';
+  const locale = isRTL ? 'he-IL' : 'en-US';
+
+  return {
+    language,
+    isRTL,
+    locale,
+    copy: translations[language],
+  };
+}
+
+export function getLocale(language: AppLanguage): string {
+  return language === 'he' ? 'he-IL' : 'en-US';
+}
+
+export function isRTL(language: AppLanguage): boolean {
+  return language === 'he';
+}
+
+export function directionalArrow(language: AppLanguage): string {
+  return isRTL(language) ? '←' : '→';
+}
+
+export function oppositeArrow(language: AppLanguage): string {
+  return isRTL(language) ? '→' : '←';
+}
+
+export function directionalIconClass(language: AppLanguage): string {
+  return isRTL(language) ? 'rotate-180' : '';
+}
+
+export function isolateLtr(value: string): string {
+  return `\u2066${value}\u2069`;
+}
+
+export function formatNumber(value: number, language: AppLanguage, options?: Intl.NumberFormatOptions): string {
+  return new Intl.NumberFormat(getLocale(language), options).format(value);
+}
+
+export function formatDateValue(date: Date | string, language: AppLanguage, options: Intl.DateTimeFormatOptions): string {
+  const input = typeof date === 'string' ? new Date(date) : date;
+  return new Intl.DateTimeFormat(getLocale(language), options).format(input);
+}
+
+export function formatTimeValue(date: Date | string, language: AppLanguage): string {
+  const input = typeof date === 'string' ? new Date(date) : date;
+  return new Intl.DateTimeFormat(getLocale(language), { hour: '2-digit', minute: '2-digit' }).format(input);
+}
+
+export function formatAmountWithUnit(value: number, unit: string, language: AppLanguage, decimals = 0): string {
+  const formatted = formatNumber(value, language, { maximumFractionDigits: decimals, minimumFractionDigits: decimals && value % 1 !== 0 ? decimals : 0 });
+  return isolateLtr(`${formatted} ${unit}`);
+}
+
+export function formatCompactAmount(value: number, unit: string, language: AppLanguage, decimals = 1): string {
+  const formatted = formatNumber(value, language, {
+    minimumFractionDigits: value % 1 === 0 ? 0 : decimals,
+    maximumFractionDigits: decimals,
+  });
+  return isolateLtr(`${formatted}${unit}`);
+}
+
+export function formatWeightGoal(current: number, goal: number, language: AppLanguage, goalLabel: string): string {
+  return `${formatAmountWithUnit(current, 'kg', language)} ${directionalArrow(language)} ${formatAmountWithUnit(goal, 'kg', language)} ${goalLabel}`;
+}
+
+export function modeLabel(mode: Profile['mode'], language: AppLanguage): string {
+  return translations[language].profile.sections[mode];
+}
+
+export function sexLabel(sex: Profile['demographics']['sex'], language: AppLanguage): string {
+  const labels = {
+    en: { female: 'Female', male: 'Male', other: 'Other' },
+    he: { female: 'נקבה', male: 'זכר', other: 'אחר' },
+  };
+  return labels[language][sex];
+}
+
+export function activityLabel(level: ActivityLevel, language: AppLanguage): string {
+  return translations[language].profile.activities[level];
+}
+
+export function mealTypeLabel(type: LoggedMeal['meal_type'], language: AppLanguage): string {
+  return translations[language].log.mealTypes[type];
+}
+
+export function phaseName(phase: Phase, language: AppLanguage): string {
+  return translations[language].phases.names[phase];
+}
+
+export function phaseShortName(phase: Phase, language: AppLanguage): string {
+  return translations[language].phases.short[phase];
+}
+
+export function phaseBrief(phase: Phase, language: AppLanguage) {
+  return translations[language].phases.briefs[phase];
+}
+
+export function localizeFoodName(name: string, language: AppLanguage): string {
+  if (language !== 'he') return name;
+  return FOOD_NAME_TRANSLATIONS[name]?.he ?? name;
+}
+
+export function mealDisplayName(meal: Pick<MealItem, 'id' | 'name'>, language: AppLanguage): string {
+  if (language !== 'he') return meal.name;
+  return MEAL_TRANSLATIONS[meal.id]?.nameHe ?? meal.name;
+}
+
+export function mealInstructions(meal: Pick<MealItem, 'id' | 'instructions'>, language: AppLanguage): string[] | undefined {
+  if (language !== 'he') return meal.instructions;
+  return MEAL_TRANSLATIONS[meal.id]?.instructionsHe ?? meal.instructions;
+}
+
+export function ingredientDisplayName(ingredient: Pick<Ingredient, 'name' | 'nameHe'>, language: AppLanguage): string {
+  return language === 'he' ? (ingredient.nameHe ?? ingredient.name) : ingredient.name;
+}
+
+export function micronutrientLabel(key: keyof typeof MICRO_LABELS, language: AppLanguage): string {
+  return MICRO_LABELS[key][language];
+}

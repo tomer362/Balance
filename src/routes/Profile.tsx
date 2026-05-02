@@ -9,15 +9,7 @@ import { getCurrentPhase } from '../lib/cyclePhase';
 import { sumNutrients } from '../lib/gapAnalysis';
 import { getSuggestions } from '../lib/suggestionEngine';
 import { MICRONUTRIENT_FIELDS } from '../lib/nutrition';
-
-const LANGUAGE_LABELS = {
-  en: { primary: 'English', secondary: 'Hebrew on the side', cta: 'Switch to Hebrew' },
-  he: { primary: 'עברית', secondary: 'English on the side', cta: 'Switch to English' },
-} as const;
-const CONCERNS = ['Insulin resistance', 'Weight', 'Hirsutism', 'Acne', 'Fertility', 'Irregular cycles'];
-const DIETARY_FLAGS = ['Vegetarian', 'Vegan', 'Gluten-free', 'Dairy-limited', 'Nut-free'];
-const SUPPLEMENTS = ['Creatine 5g daily', 'Whey protein', 'Fish oil', 'Vitamin D', 'Inositol'];
-const DAYS_SHORT = ['M', 'T', 'W', 'T', 'F', 'S', 'S'];
+import { directionalIconClass, formatAmountWithUnit, formatWeightGoal, isolateLtr, modeLabel, sexLabel, activityLabel, useI18n } from '../lib/i18n';
 const EXPORT_NUTRITION_HEADERS = [
   'sugar_g',
   'saturated_fat_g',
@@ -137,8 +129,10 @@ function exportAIReview(profile: Profile, computedTargets: Targets): void {
 // ─── Add-profile mini modal ───────────────────────────────────────────────────
 
 function AddProfileModal({ onClose }: { onClose: () => void }) {
+  const { copy, language } = useI18n();
   const addProfile = useAppStore((s) => s.addProfile);
   const setActiveProfile = useAppStore((s) => s.setActiveProfile);
+  const profileCopy = copy.profile;
 
   const [name, setName] = useState('');
   const [mode, setMode] = useState<Profile['mode']>('maintain');
@@ -147,7 +141,7 @@ function AddProfileModal({ onClose }: { onClose: () => void }) {
     const id = `user-${Date.now()}`;
     const draft: Profile = {
       id,
-      name: name.trim() || 'New Profile',
+      name: name.trim() || profileCopy.newProfile,
       mode,
       demographics: { sex: 'other', age: 25, height_cm: 170, weight_kg: 70, goal_weight_kg: 70, activity_level: 'moderate' },
       targets: { calories: 2000, protein_g: 100, fat_g: 65, carbs_g: 250 }, // overwritten below
@@ -174,6 +168,7 @@ function AddProfileModal({ onClose }: { onClose: () => void }) {
   return createPortal(
     <div
       className="fixed inset-0 z-[60] flex items-center justify-center bg-black/40 px-4"
+      dir={language === 'he' ? 'rtl' : 'ltr'}
       onClick={onClose}
     >
       <div
@@ -181,7 +176,7 @@ function AddProfileModal({ onClose }: { onClose: () => void }) {
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center justify-between">
-          <h3 className="font-semibold text-plum-dark">New profile</h3>
+          <h3 className="font-semibold text-plum-dark">{profileCopy.newProfile}</h3>
           <button onClick={onClose} className="tap-target flex items-center justify-center">
             <X size={20} className="text-ink-40" />
           </button>
@@ -191,7 +186,7 @@ function AddProfileModal({ onClose }: { onClose: () => void }) {
           type="text"
           value={name}
           onChange={(e) => setName(e.target.value)}
-          placeholder="Your name"
+          placeholder={copy.onboarding.namePlaceholder}
           className="w-full px-4 py-3 rounded-xl border border-sand bg-cream-card text-plum-dark placeholder-ink-40 focus:outline-none focus:border-sage-primary"
         />
 
@@ -204,7 +199,7 @@ function AddProfileModal({ onClose }: { onClose: () => void }) {
                 mode === m ? 'bg-sage-deep text-white border-sage-deep' : 'bg-cream-card border-sand text-ink-60'
               }`}
             >
-              {m === 'pcos' ? 'PCOS' : m === 'bulk' ? 'Bulk' : 'Maintain'}
+              {modeLabel(m, language)}
             </button>
           ))}
         </div>
@@ -213,7 +208,7 @@ function AddProfileModal({ onClose }: { onClose: () => void }) {
           onClick={create}
           className="w-full bg-sage-deep text-white py-3.5 rounded-2xl font-semibold"
         >
-          Create profile
+          {profileCopy.createProfile}
         </button>
       </div>
     </div>,
@@ -233,6 +228,9 @@ export default function Profile() {
   const updateProfile = useAppStore((s) => s.updateProfile);
   const deleteProfile = useAppStore((s) => s.deleteProfile);
   const profile = useAppStore(selectActiveProfile);
+  const { copy, language, isRTL } = useI18n();
+  const profileCopy = copy.profile;
+  const languageLabels = profileCopy.languageLabels[language];
 
   const [showProfileSwitcher, setShowProfileSwitcher] = useState(false);
   const [showAddModal, setShowAddModal] = useState(false);
@@ -380,22 +378,22 @@ export default function Profile() {
 
   function handleDeleteProfile(id: string) {
     if (profiles.length <= 1) {
-      alert('You need at least one profile.');
+      alert(profileCopy.deleteNeedOne);
       return;
     }
-    if (confirm(`Delete profile "${profiles.find((p) => p.id === id)?.name}"? This cannot be undone.`)) {
+    if (confirm(profileCopy.deleteConfirm(profiles.find((p) => p.id === id)?.name ?? ''))) {
       deleteProfile(id);
     }
   }
 
   return (
-    <div className="main-content min-h-screen bg-cream-bg">
+    <div className="main-content min-h-screen bg-cream-bg" dir={isRTL ? 'rtl' : 'ltr'}>
       {/* Header */}
       <div className="px-4 pt-4 pb-3 flex items-center gap-3">
         <button onClick={() => navigate(-1)} className="tap-target flex items-center justify-center p-2 rounded-full hover:bg-sand">
-          <ArrowLeft size={20} className="text-plum-dark" />
+          <ArrowLeft size={20} className={`text-plum-dark ${directionalIconClass(language)}`} />
         </button>
-        <h1 className="font-semibold text-plum-dark">Profile</h1>
+        <h1 className="font-semibold text-plum-dark">{profileCopy.title}</h1>
       </div>
 
       <div className="px-4 space-y-4 pb-6">
@@ -411,13 +409,13 @@ export default function Profile() {
           <div className="flex-1 min-w-0">
             <p className="font-semibold text-plum-dark">{profile.name}</p>
             <p className="text-xs text-ink-60">
-              {profile.mode === 'pcos' ? 'PCOS Mode' : profile.mode === 'bulk' ? 'Bulk Mode' : 'Maintain'}
+              {modeLabel(profile.mode, language)}
               {phaseInfo && ` · cycle day ${phaseInfo.cycleDay}`}
               {profile.mode === 'bulk' && ` · ${profile.demographics.weight_kg} kg`}
             </p>
-            <p className="text-xs text-ink-40">{profile.demographics.weight_kg} kg → {profile.demographics.goal_weight_kg} kg goal</p>
+            <p className="text-xs text-ink-40">{formatWeightGoal(profile.demographics.weight_kg, profile.demographics.goal_weight_kg, language, copy.dashboard.goal)}</p>
           </div>
-          <ChevronRight size={18} className="text-ink-40 flex-shrink-0" />
+          <ChevronRight size={18} className={`text-ink-40 flex-shrink-0 ${directionalIconClass(language)}`} />
         </button>
 
         {/* Profile switcher */}
@@ -439,9 +437,9 @@ export default function Profile() {
                   </div>
                   <div className="flex-1">
                     <p className="text-sm font-medium text-plum-dark">{p.name}</p>
-                    <p className="text-xs text-ink-40">{p.mode === 'pcos' ? 'PCOS Mode' : p.mode === 'bulk' ? 'Bulk Mode' : 'Maintain'}</p>
+                    <p className="text-xs text-ink-40">{modeLabel(p.mode, language)}</p>
                   </div>
-                  {p.id === activeId && <span className="text-xs text-sage-deep font-medium">(active)</span>}
+                  {p.id === activeId && <span className="text-xs text-sage-deep font-medium">({profileCopy.active})</span>}
                 </button>
                 {profiles.length > 1 && (
                   <button
@@ -458,13 +456,13 @@ export default function Profile() {
               className="w-full flex items-center gap-3 px-4 py-3 text-left text-sm text-coral-accent font-medium border-t border-sand"
             >
               <Plus size={16} />
-              Add profile
+              {profileCopy.addProfile}
             </button>
           </div>
         )}
 
         {/* Mode */}
-        <Section title="Mode">
+        <Section title={profileCopy.mode}>
           <div className="space-y-2">
             {(['pcos', 'bulk', 'maintain'] as const).map((m) => (
               <div key={m} className="flex items-center gap-3 py-1">
@@ -479,13 +477,13 @@ export default function Profile() {
                     {profile.mode === m && <div className="w-2 h-2 rounded-full bg-sage-deep" />}
                   </div>
                   <span className="text-sm text-plum-dark">
-                    {m === 'pcos' ? 'PCOS Mode' : m === 'bulk' ? 'Bulk Mode' : 'Maintain'}
+                    {modeLabel(m, language)}
                   </span>
                 </button>
                 <button
                   onClick={() => setPlanInfoMode(m)}
                   className="tap-target flex items-center justify-center text-ink-40 hover:text-sage-deep transition-colors"
-                  aria-label={`About ${m} mode`}
+                  aria-label={copy.profile.aboutMode(modeLabel(m, language))}
                 >
                   <Info size={16} />
                 </button>
@@ -495,10 +493,10 @@ export default function Profile() {
         </Section>
 
         {/* Settings */}
-        <Section title="Settings">
+        <Section title={profileCopy.settings}>
           <div className="space-y-4">
             <div>
-              <p className="text-xs text-ink-40 mb-2">Theme</p>
+              <p className="text-xs text-ink-40 mb-2">{profileCopy.theme}</p>
               <div className="grid grid-cols-3 gap-2">
                 {(['auto', 'light', 'dark'] as const).map((theme) => (
                   <button
@@ -509,7 +507,7 @@ export default function Profile() {
                       appSettings.theme === theme ? 'bg-sage-deep text-white border-sage-deep' : 'bg-cream-card border-sand text-ink-60'
                     }`}
                   >
-                    {theme}
+                    {profileCopy.themes[theme]}
                   </button>
                 ))}
               </div>
@@ -517,9 +515,9 @@ export default function Profile() {
 
             <div className="flex items-center justify-between gap-3 border-t border-sand pt-4">
               <div>
-                <p className="text-sm font-medium text-plum-dark">Language</p>
+                <p className="text-sm font-medium text-plum-dark">{profileCopy.language}</p>
                 <p className="text-xs text-ink-40">
-                  {LANGUAGE_LABELS[appSettings.language].primary} · {LANGUAGE_LABELS[appSettings.language].secondary}
+                  {languageLabels.primary} · {languageLabels.secondary}
                 </p>
               </div>
               <button
@@ -527,7 +525,7 @@ export default function Profile() {
                 onClick={() => setAppSettings({ language: appSettings.language === 'en' ? 'he' : 'en' })}
                 className="px-3 py-2 rounded-xl bg-sage-deep text-white text-xs font-semibold"
               >
-                {LANGUAGE_LABELS[appSettings.language].cta}
+                {languageLabels.cta}
               </button>
             </div>
           </div>
@@ -535,10 +533,10 @@ export default function Profile() {
 
         {/* PCOS-specific */}
         {profile.mode === 'pcos' && profile.pcos && (
-          <Section title="PCOS Profile">
-            <p className="text-xs text-ink-40 mb-2">Primary concerns</p>
+          <Section title={profileCopy.pcosProfile}>
+            <p className="text-xs text-ink-40 mb-2">{profileCopy.primaryConcerns}</p>
             <div className="flex flex-wrap gap-2 mb-4">
-              {CONCERNS.map((c) => {
+              {profileCopy.concerns.map((c) => {
                 const key = c.toLowerCase().replace(/\s/g, '-');
                 const active = profile.pcos!.concerns.includes(key);
                 return (
@@ -556,11 +554,11 @@ export default function Profile() {
             </div>
 
             {/* PCOS goal selector */}
-            <p className="text-xs text-ink-40 mb-2 mt-1">Primary focus</p>
+            <p className="text-xs text-ink-40 mb-2 mt-1">{profileCopy.primaryFocus}</p>
             <div className="flex gap-2 mb-4">
               {([
-                { value: 'lose_weight' as const, label: 'Lose weight' },
-                { value: 'manage_symptoms' as const, label: 'Manage symptoms' },
+                { value: 'lose_weight' as const, label: copy.onboarding.pcosGoals.lose_weight.label },
+                { value: 'manage_symptoms' as const, label: copy.onboarding.pcosGoals.manage_symptoms.label },
               ]).map(({ value, label }) => {
                 const active = (profile.pcos!.goal ?? 'lose_weight') === value;
                 return (
@@ -581,7 +579,7 @@ export default function Profile() {
             </div>
 
             <div className="flex items-center justify-between py-2 border-t border-sand">
-              <span className="text-sm text-plum-dark flex-1">Phase-aware suggestions</span>
+              <span className="text-sm text-plum-dark flex-1">{profileCopy.phaseAware}</span>
               <Toggle
                 checked={!profile.pcos.cycle.currentPhaseOverride}
                 onChange={() =>
@@ -601,7 +599,7 @@ export default function Profile() {
               />
             </div>
             <div className="flex items-center justify-between py-2">
-              <span className="text-sm text-plum-dark flex-1">Seed cycling reminders</span>
+              <span className="text-sm text-plum-dark flex-1">{profileCopy.seedCycling}</span>
               <Toggle
                 checked={profile.pcos.seedCyclingEnabled}
                 onChange={() => updateProfile(profile.id, {
@@ -615,10 +613,10 @@ export default function Profile() {
 
         {/* Bulk-specific */}
         {profile.mode === 'bulk' && profile.bulk && (
-          <Section title="Training schedule">
-            <p className="text-xs text-ink-40 mb-2">Tap to toggle training / rest days</p>
+          <Section title={profileCopy.trainingSchedule}>
+            <p className="text-xs text-ink-40 mb-2">{profileCopy.trainingHelper}</p>
             <div className="flex gap-2 mb-3">
-              {DAYS_SHORT.map((day, i) => {
+              {copy.progress.weekdaysShort.map((day, i) => {
                 const isTrain = profile.bulk!.trainingSchedule.weekPattern[i] === 'training';
                 const split = profile.bulk!.trainingSchedule.split?.[i];
                 return (
@@ -637,17 +635,17 @@ export default function Profile() {
             </div>
 
             <div className="flex items-center justify-between py-2 border-t border-sand">
-              <span className="text-sm text-ink-60">Calorie surplus</span>
+              <span className="text-sm text-ink-60">{profileCopy.calorieSurplus}</span>
               <span className="text-sm font-semibold text-plum-dark font-mono-num">+{profile.bulk.surplus_kcal} kcal</span>
             </div>
             <div className="flex items-center justify-between py-2">
-              <span className="text-sm text-ink-60">Protein target</span>
+              <span className="text-sm text-ink-60">{profileCopy.proteinTarget}</span>
               <span className="text-sm font-semibold text-plum-dark font-mono-num">{profile.bulk.protein_g_per_kg} g/kg</span>
             </div>
 
-            <p className="text-xs text-ink-40 mt-3 mb-2">Supplements</p>
+            <p className="text-xs text-ink-40 mt-3 mb-2">{profileCopy.supplements}</p>
             <div className="space-y-1.5">
-              {SUPPLEMENTS.map((s) => {
+              {profileCopy.supplementsList.map((s) => {
                 const key = s.toLowerCase().split(' ').slice(0, 1).join('');
                 const active = profile.bulk!.supplements.some((sup) => sup.includes(key));
                 return (
@@ -670,11 +668,11 @@ export default function Profile() {
         )}
 
         {/* Body metrics — editable */}
-        <Section title="Body metrics">
+        <Section title={profileCopy.bodyMetrics}>
           <div className="space-y-3">
             {/* Sex */}
             <div className="flex items-center justify-between">
-              <span className="text-sm text-ink-60">Sex</span>
+              <span className="text-sm text-ink-60">{profileCopy.sex}</span>
               <div className="flex gap-1.5">
                 {(['female', 'male', 'other'] as const).map((s) => (
                   <button
@@ -684,7 +682,7 @@ export default function Profile() {
                       profile.demographics.sex === s ? 'bg-sage-deep text-white' : 'bg-sand text-ink-60'
                     }`}
                   >
-                    {s}
+                    {sexLabel(s, language)}
                   </button>
                 ))}
               </div>
@@ -692,7 +690,7 @@ export default function Profile() {
 
             {/* Age */}
             <div className="flex items-center justify-between">
-              <span className="text-sm text-ink-60">Age</span>
+              <span className="text-sm text-ink-60">{profileCopy.age}</span>
               <input
                 data-testid="metrics-age"
                 type="number" min="10" max="120"
@@ -705,7 +703,7 @@ export default function Profile() {
 
             {/* Height */}
             <div className="flex items-center justify-between">
-              <span className="text-sm text-ink-60">Height (cm)</span>
+              <span className="text-sm text-ink-60">{profileCopy.heightCm}</span>
               <input
                 data-testid="metrics-height"
                 type="number" min="100" max="250"
@@ -718,7 +716,7 @@ export default function Profile() {
 
             {/* Weight */}
             <div className="flex items-center justify-between">
-              <span className="text-sm text-ink-60">Weight (kg)</span>
+              <span className="text-sm text-ink-60">{profileCopy.weightKg}</span>
               <input
                 data-testid="metrics-weight"
                 type="number" min="20" max="300" step="0.1"
@@ -733,7 +731,7 @@ export default function Profile() {
             <div>
               <div className="flex items-center justify-between">
                 <span className={`text-sm transition-colors ${showGoalHint ? 'text-sage-deep' : 'text-ink-60'}`}>
-                  Goal weight (kg)
+                  {profileCopy.goalWeightKg}
                 </span>
                 <input
                   data-testid="metrics-goal-weight"
@@ -746,14 +744,14 @@ export default function Profile() {
               </div>
               {showGoalHint && (
                 <p className="text-[11px] text-sage-deep mt-0.5" data-testid="goal-weight-hint">
-                  Tip: update your goal weight to align with your current plan.
+                  {profileCopy.goalWeightTip}
                 </p>
               )}
             </div>
 
             {/* Activity level */}
             <div className="flex items-center justify-between">
-              <span className="text-sm text-ink-60">Activity level</span>
+              <span className="text-sm text-ink-60">{profileCopy.activityLevel}</span>
               <select
                 data-testid="metrics-activity"
                 value={profile.demographics.activity_level}
@@ -762,35 +760,35 @@ export default function Profile() {
                 })}
                 className="rounded-lg border border-sand bg-cream-bg text-xs text-plum-dark px-2 py-1.5 focus:outline-none focus:border-sage-primary"
               >
-                <option value="sedentary">Sedentary</option>
-                <option value="light">Lightly active</option>
-                <option value="moderate">Moderately active</option>
-                <option value="active">Active</option>
-                <option value="very_active">Very active</option>
+                <option value="sedentary">{activityLabel('sedentary', language)}</option>
+                <option value="light">{activityLabel('light', language)}</option>
+                <option value="moderate">{activityLabel('moderate', language)}</option>
+                <option value="active">{activityLabel('active', language)}</option>
+                <option value="very_active">{activityLabel('very_active', language)}</option>
               </select>
             </div>
           </div>
-          <p className="text-[10px] text-ink-40 mt-3">All targets recalculate instantly when you update these values.</p>
+          <p className="text-[10px] text-ink-40 mt-3">{profileCopy.recalcInstant}</p>
         </Section>
 
         {/* Daily targets */}
-        <Section title="Daily targets (auto-computed)">
+        <Section title={profileCopy.dailyTargets}>
           <div className="space-y-2">
             {[
-              { label: 'Calories', val: `${computedTargets.calories} kcal` },
-              { label: 'Protein', val: `${computedTargets.protein_g}g` },
-              { label: 'Carbs', val: `${computedTargets.carbs_g}g` },
-              { label: 'Fat', val: `${computedTargets.fat_g}g` },
+              { label: copy.common.calories, val: `${computedTargets.calories} kcal` },
+              { label: copy.common.protein, val: `${computedTargets.protein_g}g` },
+              { label: copy.common.carbs, val: `${computedTargets.carbs_g}g` },
+              { label: copy.common.fat, val: `${computedTargets.fat_g}g` },
               ...(profile.mode === 'pcos' ? [
-                { label: 'Fiber', val: `${computedTargets.fiber_g}g` },
-                { label: 'Omega-3', val: `${computedTargets.omega3_g}g` },
+                { label: copy.common.fiber, val: `${computedTargets.fiber_g}g` },
+                { label: copy.common.omega3, val: `${computedTargets.omega3_g}g` },
                 { label: 'Max GL/day', val: String(computedTargets.max_glycemic_load) },
               ] : profile.mode === 'bulk' ? [
-                { label: 'Fiber', val: `${computedTargets.fiber_g}g` },
+                { label: copy.common.fiber, val: `${computedTargets.fiber_g}g` },
                 { label: 'Training day cal', val: `${computedTargets.calories_training_day} kcal` },
                 { label: 'Rest day cal', val: `${computedTargets.calories_rest_day} kcal` },
               ] : [
-                { label: 'Fiber', val: `${computedTargets.fiber_g}g` },
+                { label: copy.common.fiber, val: `${computedTargets.fiber_g}g` },
               ]),
             ].map(({ label, val }) => (
               <div key={label} className="flex items-center justify-between">
@@ -804,27 +802,27 @@ export default function Profile() {
           {computedTargets.tdee != null && (
             <div className="mt-4 pt-3 border-t border-sand">
               <div className="flex items-center justify-between mb-2">
-                <p className="text-xs text-ink-40">How your calories were calculated</p>
+                <p className="text-xs text-ink-40">{profileCopy.howCalculated}</p>
                 <button
                   data-testid="open-science-modal"
                   onClick={() => setShowScienceModal(true)}
                   className="flex items-center gap-1 text-[11px] text-sage-deep font-medium"
                 >
                   <Info size={12} />
-                  Full details
+                  {profileCopy.fullDetails}
                 </button>
               </div>
               <div className="bg-sand/50 rounded-xl p-3 space-y-1.5">
                 <div className="flex justify-between text-xs">
-                  <span className="text-ink-60">TDEE (maintenance)</span>
+                  <span className="text-ink-60">{profileCopy.maintenance}</span>
                   <span className="font-semibold text-plum-dark font-mono-num">{computedTargets.tdee} kcal</span>
                 </div>
                 {profile.mode === 'pcos' && (
                   <div className="flex justify-between text-xs">
                     <span className="text-ink-60">
                       {(profile.pcos?.goal ?? 'lose_weight') === 'lose_weight'
-                        ? 'Deficit (−300 kcal)'
-                        : 'Adjustment (symptom management)'}
+                        ? profileCopy.deficit
+                        : profileCopy.symptomManagement}
                     </span>
                     <span className="font-semibold text-plum-dark font-mono-num">
                       {(profile.pcos?.goal ?? 'lose_weight') === 'lose_weight' ? '−300' : '0'} kcal
@@ -833,18 +831,18 @@ export default function Profile() {
                 )}
                 {profile.mode === 'bulk' && (
                   <div className="flex justify-between text-xs">
-                    <span className="text-ink-60">Surplus</span>
+                    <span className="text-ink-60">{profileCopy.surplus}</span>
                     <span className="font-semibold text-plum-dark font-mono-num">+{profile.bulk?.surplus_kcal ?? 300} kcal</span>
                   </div>
                 )}
                 {profile.mode === 'maintain' && (
                   <div className="flex justify-between text-xs">
-                    <span className="text-ink-60">Adjustment</span>
+                    <span className="text-ink-60">{profileCopy.adjustment}</span>
                     <span className="font-semibold text-plum-dark font-mono-num">0 kcal</span>
                   </div>
                 )}
                 <div className="flex justify-between text-xs border-t border-sand pt-1.5 mt-1">
-                  <span className="font-medium text-plum-dark">Daily target</span>
+                  <span className="font-medium text-plum-dark">{profileCopy.dailyTarget}</span>
                   <span className="font-bold text-plum-dark font-mono-num">{computedTargets.calories} kcal</span>
                 </div>
               </div>
@@ -853,9 +851,9 @@ export default function Profile() {
         </Section>
 
         {/* Dietary preferences */}
-        <Section title="Dietary preferences">
+        <Section title={profileCopy.dietaryPreferences}>
           <div className="flex flex-wrap gap-2">
-            {DIETARY_FLAGS.map((f) => {
+            {profileCopy.dietaryFlags.map((f) => {
               const key = f.toLowerCase().replace(/\s/g, '-');
               const active = profile.preferences.dietary_flags.includes(key);
               return (
@@ -874,34 +872,34 @@ export default function Profile() {
         </Section>
 
         {/* Household */}
-        <Section title="Household">
+        <Section title={profileCopy.household}>
           {profiles.map((p) => (
             <div key={p.id} className="flex items-center gap-3 py-1.5">
               <div className="w-8 h-8 rounded-full bg-sage-primary/20 flex items-center justify-center text-sm">👤</div>
               <div className="flex-1">
                 <p className="text-sm font-medium text-plum-dark">{p.name}</p>
-                <p className="text-xs text-ink-40">{p.mode === 'pcos' ? 'PCOS Mode' : p.mode === 'bulk' ? 'Bulk Mode' : 'Maintain'}</p>
+                <p className="text-xs text-ink-40">{modeLabel(p.mode, language)}</p>
               </div>
-              {p.id === activeId && <span className="text-xs text-sage-deep font-medium">(you)</span>}
+              {p.id === activeId && <span className="text-xs text-sage-deep font-medium">({profileCopy.you})</span>}
             </div>
           ))}
           <button
             onClick={() => setShowAddModal(true)}
             className="flex items-center gap-2 mt-2 text-sm text-coral-accent font-medium"
           >
-            <Plus size={15} /> Add profile
+            <Plus size={15} /> {profileCopy.addProfile}
           </button>
         </Section>
 
         {/* Data */}
-        <Section title="Data">
+        <Section title={profileCopy.data}>
           <div className="space-y-3">
             <button
               onClick={() => exportCSV(profile)}
               className="w-full text-left text-sm text-ink-60 py-1 flex items-center gap-2"
             >
               <Download size={15} className="text-ink-40" />
-              Export food log to CSV
+              {profileCopy.exportCsv}
             </button>
             <button
               data-testid="export-ai-review"
@@ -909,11 +907,11 @@ export default function Profile() {
               className="w-full text-left text-sm text-ink-60 py-1 flex items-center gap-2"
             >
               <Download size={15} className="text-ink-40" />
-              Export for AI review (JSON)
+              {profileCopy.exportAi}
             </button>
             <label className="w-full text-left text-sm text-ink-60 py-1 flex items-center gap-2 cursor-pointer">
               <Upload size={15} className="text-ink-40" />
-              Import from CSV
+              {profileCopy.importCsv}
               <input
                 type="file"
                 accept=".csv"
@@ -921,7 +919,7 @@ export default function Profile() {
                 onChange={(e) => {
                   const file = e.target.files?.[0];
                   if (!file) return;
-                  alert(`Import from "${file.name}" — parsing not yet implemented. Export your data first and re-import is coming soon.`);
+                  alert(profileCopy.importPending(file.name));
                   e.target.value = '';
                 }}
               />
@@ -929,19 +927,19 @@ export default function Profile() {
             <button
               className="w-full text-left text-sm text-terracotta py-1"
               onClick={() => {
-                if (confirm('Reset all food log and weight history for this profile? This cannot be undone.')) {
+                if (confirm(profileCopy.resetConfirm)) {
                   updateProfile(profile.id, { foodLog: [], weightHistory: [], mealPlan: {} });
                 }
               }}
             >
-              Reset all data
+              {profileCopy.resetData}
             </button>
           </div>
         </Section>
 
         {/* About */}
         <div className="text-center text-xs text-ink-40 py-2">
-          Balance v1.0.0 · Goal-aware nutrition tracking
+          Balance v1.0.0 · {profileCopy.about}
         </div>
       </div>
 
@@ -983,42 +981,44 @@ function PlanInfoModal({
   tdee: number;
   onClose: () => void;
 }) {
+  const { copy, language, isRTL } = useI18n();
+  const profileCopy = copy.profile;
   const { weight_kg } = profile.demographics;
 
   const content = {
     pcos: {
-      title: 'PCOS Mode',
-      subtitle: 'Supports insulin sensitivity & hormone balance',
+      title: modeLabel('pcos', language),
+      subtitle: profileCopy.planInfo.pcos.subtitle,
       points: [
-        `Your maintenance (TDEE): ${tdee} kcal/day`,
+        `${profileCopy.maintenance}: ${formatAmountWithUnit(tdee, copy.common.kcal, language)}`,
         (profile.pcos?.goal ?? 'lose_weight') === 'lose_weight'
-          ? `300 kcal deficit → ${Math.max(1200, tdee - 300)} kcal target for gradual fat loss`
-          : `No deficit → ${tdee} kcal at maintenance to preserve hormonal balance`,
-        `High protein (${Math.round(weight_kg * 1.5)}g / 1.5 g per kg) reduces insulin spikes`,
-        'Phase-aware meals align macros with your menstrual cycle',
-        'Daily fiber (30g) and omega-3 (3g) targets help reduce inflammation',
+          ? `${profileCopy.deficit}: ${formatAmountWithUnit(Math.max(1200, tdee - 300), copy.common.kcal, language)}`
+          : profileCopy.symptomManagement,
+        `${copy.common.protein}: ${formatAmountWithUnit(Math.round(weight_kg * 1.5), 'g', language)} — ${profileCopy.planInfo.pcos.subtitle}`,
+        profileCopy.planInfo.pcos.bullet4,
+        profileCopy.planInfo.pcos.bullet5,
       ],
     },
     bulk: {
-      title: 'Bulk Mode',
-      subtitle: 'Maximizes lean muscle growth',
+      title: modeLabel('bulk', language),
+      subtitle: profileCopy.planInfo.bulk.subtitle,
       points: [
-        `Your maintenance (TDEE): ${tdee} kcal/day`,
-        `+${profile.bulk?.surplus_kcal ?? 300} kcal surplus → ${tdee + (profile.bulk?.surplus_kcal ?? 300)} kcal/day to fuel muscle growth`,
-        `High protein (${Math.round(weight_kg * (profile.bulk?.protein_g_per_kg ?? 2.0))}g / ${profile.bulk?.protein_g_per_kg ?? 2.0} g per kg) maximizes muscle protein synthesis`,
-        'Training days: +150 kcal with extra carbs for performance',
-        'Rest days: −150 kcal to minimize fat accumulation',
+        `${profileCopy.maintenance}: ${formatAmountWithUnit(tdee, copy.common.kcal, language)}`,
+        `+${profile.bulk?.surplus_kcal ?? 300} ${copy.common.kcal} → ${formatAmountWithUnit(tdee + (profile.bulk?.surplus_kcal ?? 300), copy.common.kcal, language)}`,
+        `${copy.common.protein}: ${formatAmountWithUnit(Math.round(weight_kg * (profile.bulk?.protein_g_per_kg ?? 2.0)), 'g', language)} — ${profileCopy.planInfo.bulk.subtitle}`,
+        profileCopy.planInfo.bulk.bullet4,
+        profileCopy.planInfo.bulk.bullet5,
       ],
     },
     maintain: {
-      title: 'Maintain Mode',
-      subtitle: 'Keeps weight stable with balanced nutrition',
+      title: modeLabel('maintain', language),
+      subtitle: profileCopy.planInfo.maintain.subtitle,
       points: [
-        `Your TDEE: ${tdee} kcal/day — this becomes your daily calorie target`,
-        'No deficit or surplus — calories match what you burn',
-        `Protein target: ${Math.round(weight_kg * 1.2)}g / day (1.2 g per kg — WHO recommendation)`,
-        'Balanced macros (30% fat, ~50% carbs) support energy and long-term health',
-        'Focus on food quality and consistency rather than restriction',
+        `${profileCopy.maintenance}: ${formatAmountWithUnit(tdee, copy.common.kcal, language)}`,
+        profileCopy.planInfo.maintain.bullet2,
+        `${copy.common.protein}: ${formatAmountWithUnit(Math.round(weight_kg * 1.2), 'g', language)} / day`,
+        profileCopy.planInfo.maintain.bullet4,
+        profileCopy.planInfo.maintain.bullet5,
       ],
     },
   }[mode];
@@ -1026,6 +1026,7 @@ function PlanInfoModal({
   return createPortal(
     <div
       className="fixed inset-0 z-[60] flex items-end justify-center bg-black/40 px-4 pb-6"
+      dir={isRTL ? 'rtl' : 'ltr'}
       onClick={onClose}
     >
       <div
@@ -1050,7 +1051,7 @@ function PlanInfoModal({
           ))}
         </div>
         <p className="text-[10px] text-ink-40 pt-2 border-t border-sand">
-          Targets recalculate automatically when you update your body metrics.
+          {profileCopy.planInfo.recalc}
         </p>
       </div>
     </div>,
@@ -1069,6 +1070,8 @@ function ScienceModal({
   computedTargets: Targets;
   onClose: () => void;
 }) {
+  const { copy, language, isRTL } = useI18n();
+  const profileCopy = copy.profile;
   const { sex, age, height_cm, weight_kg, activity_level } = profile.demographics;
   const w = weight_kg > 0 ? weight_kg : 70;
   const h = height_cm > 0 ? height_cm : 170;
@@ -1079,11 +1082,11 @@ function ScienceModal({
   const tdee = computedTargets.tdee ?? bmr;
 
   const ACTIVITY_ROWS: Array<{ key: string; label: string; mult: number }> = [
-    { key: 'sedentary',   label: 'Sedentary',          mult: 1.2   },
-    { key: 'light',       label: 'Lightly active',      mult: 1.375 },
-    { key: 'moderate',    label: 'Moderately active',   mult: 1.55  },
-    { key: 'active',      label: 'Active',              mult: 1.725 },
-    { key: 'very_active', label: 'Very active',         mult: 1.9   },
+    { key: 'sedentary',   label: activityLabel('sedentary', language),          mult: 1.2   },
+    { key: 'light',       label: activityLabel('light', language),      mult: 1.375 },
+    { key: 'moderate',    label: activityLabel('moderate', language),   mult: 1.55  },
+    { key: 'active',      label: activityLabel('active', language),              mult: 1.725 },
+    { key: 'very_active', label: activityLabel('very_active', language),         mult: 1.9   },
   ];
 
   const REFS = [
@@ -1112,6 +1115,7 @@ function ScienceModal({
   return createPortal(
     <div
       className="fixed inset-0 z-[60] flex items-end justify-center bg-black/40 px-4 pb-6"
+      dir={isRTL ? 'rtl' : 'ltr'}
       onClick={onClose}
       data-testid="science-modal"
     >
@@ -1122,8 +1126,8 @@ function ScienceModal({
         {/* Header */}
         <div className="flex items-center justify-between px-5 pt-5 pb-3">
           <div>
-            <h3 className="font-semibold text-plum-dark">How targets are calculated</h3>
-            <p className="text-xs text-ink-40 mt-0.5">Evidence-based formulas</p>
+            <h3 className="font-semibold text-plum-dark">{profileCopy.science.title}</h3>
+            <p className="text-xs text-ink-40 mt-0.5">{profileCopy.science.subtitle}</p>
           </div>
           <button onClick={onClose} className="tap-target flex items-center justify-center flex-shrink-0">
             <X size={20} className="text-ink-40" />
@@ -1133,19 +1137,19 @@ function ScienceModal({
         <div className="overflow-y-auto max-h-[70vh] px-5 pb-5 space-y-5">
           {/* Step 1 — BMR */}
           <div>
-            <p className="text-xs font-bold text-ink-40 uppercase tracking-wide mb-2">Step 1 — Basal Metabolic Rate (BMR)</p>
+            <p className="text-xs font-bold text-ink-40 uppercase tracking-wide mb-2">{profileCopy.science.step1}</p>
             <div className="bg-sand/50 rounded-xl p-3 font-mono text-xs text-plum-dark leading-relaxed">
               <p>BMR = 10×{w} + 6.25×{h} − 5×{a} {sexConstant >= 0 ? `+ ${sexConstant}` : `− ${Math.abs(sexConstant)}`}</p>
               <p className="mt-1 text-sage-deep font-bold">= {bmr} kcal/day</p>
             </div>
             <p className="text-[10px] text-ink-40 mt-1.5">
-              Sex constant: male +5 · female −161 · other −78 (average of male/female)
+              {profileCopy.science.step1Note}
             </p>
           </div>
 
           {/* Step 2 — TDEE */}
           <div>
-            <p className="text-xs font-bold text-ink-40 uppercase tracking-wide mb-2">Step 2 — Total Daily Energy Expenditure (TDEE)</p>
+            <p className="text-xs font-bold text-ink-40 uppercase tracking-wide mb-2">{profileCopy.science.step2}</p>
             <div className="rounded-xl overflow-hidden border border-sand" data-testid="activity-table">
               {ACTIVITY_ROWS.map((row) => (
                 <div
@@ -1155,7 +1159,7 @@ function ScienceModal({
                   }`}
                 >
                   <span className={row.key === activity_level ? 'text-plum-dark font-semibold' : 'text-ink-60'}>
-                    {row.label}{row.key === activity_level && ' (you)'}
+                    {row.label}{row.key === activity_level && ` (${profileCopy.science.currentUser})`} 
                   </span>
                   <span className={`font-mono-num ${row.key === activity_level ? 'text-sage-deep font-bold' : 'text-ink-40'}`}>
                     ×{row.mult}
@@ -1172,35 +1176,35 @@ function ScienceModal({
           {/* Step 3 — Mode macros */}
           <div>
             <p className="text-xs font-bold text-ink-40 uppercase tracking-wide mb-2">
-              Step 3 — Macro targets ({profile.mode === 'pcos' ? 'PCOS Mode' : profile.mode === 'bulk' ? 'Bulk Mode' : 'Maintain'})
+              {profileCopy.science.step3} ({modeLabel(profile.mode, language)})
             </p>
             {profile.mode === 'pcos' && (
               <div className="space-y-1.5 text-xs text-ink-60">
                 <p>
-                  <span className="font-semibold text-plum-dark">Calories: </span>
-                  {tdee} − {(profile.pcos?.goal ?? 'lose_weight') === 'manage_symptoms' ? 0 : 300} ={' '}
+                  <span className="font-semibold text-plum-dark">{profileCopy.science.calories}: </span>
+                  {isolateLtr(`${tdee} − ${(profile.pcos?.goal ?? 'lose_weight') === 'manage_symptoms' ? 0 : 300}`)} ={' '}
                   <span className="text-sage-deep font-bold">{computedTargets.calories} kcal</span>
-                  {(profile.pcos?.goal ?? 'lose_weight') === 'manage_symptoms' && ' (no deficit — symptom management)'}
+                  {(profile.pcos?.goal ?? 'lose_weight') === 'manage_symptoms' && ` (${profileCopy.symptomManagement})`}
                 </p>
                 <p>
-                  <span className="font-semibold text-plum-dark">Protein: </span>
-                  {w} kg × 1.5 g/kg = <span className="text-sage-deep font-bold">{computedTargets.protein_g}g</span>
-                  {' '}— supports insulin sensitivity
+                  <span className="font-semibold text-plum-dark">{profileCopy.science.protein}: </span>
+                  {isolateLtr(`${w} kg × 1.5 g/kg`)} = <span className="text-sage-deep font-bold">{computedTargets.protein_g}g</span>
+                  {' '}— {profileCopy.planInfo.pcos.subtitle}
                 </p>
                 <p>
-                  <span className="font-semibold text-plum-dark">Fat: </span>
+                  <span className="font-semibold text-plum-dark">{profileCopy.science.fat}: </span>
                   30% × {computedTargets.calories} ÷ 9 = <span className="text-sage-deep font-bold">{computedTargets.fat_g}g</span>
                 </p>
                 <p>
-                  <span className="font-semibold text-plum-dark">Carbs: </span>
+                  <span className="font-semibold text-plum-dark">{profileCopy.science.carbs}: </span>
                   remainder = <span className="text-sage-deep font-bold">{computedTargets.carbs_g}g</span>
                 </p>
                 <p>
-                  <span className="font-semibold text-plum-dark">Fiber: </span>
+                  <span className="font-semibold text-plum-dark">{profileCopy.science.fiber}: </span>
                   <span className="text-sage-deep font-bold">30g</span>/day — reduces androgen levels
                 </p>
                 <p>
-                  <span className="font-semibold text-plum-dark">Omega-3: </span>
+                  <span className="font-semibold text-plum-dark">{profileCopy.science.omega3}: </span>
                   <span className="text-sage-deep font-bold">3g</span>/day — reduces inflammation
                 </p>
               </div>
@@ -1208,22 +1212,22 @@ function ScienceModal({
             {profile.mode === 'bulk' && (
               <div className="space-y-1.5 text-xs text-ink-60">
                 <p>
-                  <span className="font-semibold text-plum-dark">Calories: </span>
-                  {tdee} + {profile.bulk?.surplus_kcal ?? 300} (surplus) ={' '}
+                  <span className="font-semibold text-plum-dark">{profileCopy.science.calories}: </span>
+                  {isolateLtr(`${tdee} + ${profile.bulk?.surplus_kcal ?? 300}`)} ={' '}
                   <span className="text-sage-deep font-bold">{computedTargets.calories} kcal</span>
                 </p>
                 <p>
-                  <span className="font-semibold text-plum-dark">Protein: </span>
-                  {w} kg × {profile.bulk?.protein_g_per_kg ?? 2.0} g/kg ={' '}
+                  <span className="font-semibold text-plum-dark">{profileCopy.science.protein}: </span>
+                  {isolateLtr(`${w} kg × ${profile.bulk?.protein_g_per_kg ?? 2.0} g/kg`)} ={' '}
                   <span className="text-sage-deep font-bold">{computedTargets.protein_g}g</span>
-                  {' '}— maximizes muscle protein synthesis
+                  {' '}— {profileCopy.planInfo.bulk.subtitle}
                 </p>
                 <p>
-                  <span className="font-semibold text-plum-dark">Fat: </span>
+                  <span className="font-semibold text-plum-dark">{profileCopy.science.fat}: </span>
                   25% × {computedTargets.calories} ÷ 9 = <span className="text-sage-deep font-bold">{computedTargets.fat_g}g</span>
                 </p>
                 <p>
-                  <span className="font-semibold text-plum-dark">Carbs: </span>
+                  <span className="font-semibold text-plum-dark">{profileCopy.science.carbs}: </span>
                   remainder = <span className="text-sage-deep font-bold">{computedTargets.carbs_g}g</span>
                 </p>
                 <p>
@@ -1239,24 +1243,24 @@ function ScienceModal({
             {profile.mode === 'maintain' && (
               <div className="space-y-1.5 text-xs text-ink-60">
                 <p>
-                  <span className="font-semibold text-plum-dark">Calories: </span>
-                  TDEE = <span className="text-sage-deep font-bold">{computedTargets.calories} kcal</span> (no deficit or surplus)
+                  <span className="font-semibold text-plum-dark">{profileCopy.science.calories}: </span>
+                  {isolateLtr('TDEE')} = <span className="text-sage-deep font-bold">{computedTargets.calories} kcal</span> {profileCopy.planInfo.maintain.bullet2}
                 </p>
                 <p>
-                  <span className="font-semibold text-plum-dark">Protein: </span>
-                  {w} kg × 1.2 g/kg = <span className="text-sage-deep font-bold">{computedTargets.protein_g}g</span>
+                  <span className="font-semibold text-plum-dark">{profileCopy.science.protein}: </span>
+                  {isolateLtr(`${w} kg × 1.2 g/kg`)} = <span className="text-sage-deep font-bold">{computedTargets.protein_g}g</span>
                   {' '}— WHO recommendation
                 </p>
                 <p>
-                  <span className="font-semibold text-plum-dark">Fat: </span>
+                  <span className="font-semibold text-plum-dark">{profileCopy.science.fat}: </span>
                   30% × {computedTargets.calories} ÷ 9 = <span className="text-sage-deep font-bold">{computedTargets.fat_g}g</span>
                 </p>
                 <p>
-                  <span className="font-semibold text-plum-dark">Carbs: </span>
+                  <span className="font-semibold text-plum-dark">{profileCopy.science.carbs}: </span>
                   remainder = <span className="text-sage-deep font-bold">{computedTargets.carbs_g}g</span>
                 </p>
                 <p>
-                  <span className="font-semibold text-plum-dark">Fiber: </span>
+                  <span className="font-semibold text-plum-dark">{profileCopy.science.fiber}: </span>
                   <span className="text-sage-deep font-bold">25g</span>/day (WHO minimum)
                 </p>
               </div>
@@ -1265,7 +1269,7 @@ function ScienceModal({
 
           {/* References */}
           <div className="pt-3 border-t border-sand">
-            <p className="text-[10px] font-bold text-ink-40 uppercase tracking-wide mb-2">References</p>
+            <p className="text-[10px] font-bold text-ink-40 uppercase tracking-wide mb-2">{profileCopy.science.references}</p>
             <div className="space-y-2">
               {REFS.map((ref) => (
                 <a

@@ -3,8 +3,9 @@ import { useNavigate } from 'react-router-dom';
 import { ArrowLeft, Plus } from 'lucide-react';
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from 'recharts';
 import { useAppStore, selectActiveProfile } from '../store/appStore';
-import { getCurrentPhase, getPhaseColor, getPhaseName, getPhaseNutritionBrief } from '../lib/cyclePhase';
+import { getCurrentPhase, getPhaseColor } from '../lib/cyclePhase';
 import { sumNutrients } from '../lib/gapAnalysis';
+import { directionalIconClass, formatAmountWithUnit, phaseBrief, phaseShortName, useI18n } from '../lib/i18n';
 
 type Period = 'week' | 'month' | '3m' | 'year';
 
@@ -29,6 +30,7 @@ const PHASE_ZONES = [
 ];
 
 export default function Progress() {
+  const { copy, language } = useI18n();
   const navigate = useNavigate();
   const profile = useAppStore(selectActiveProfile);
   const logWeight = useAppStore((s) => s.logWeight);
@@ -112,20 +114,18 @@ export default function Progress() {
   }
 
   const cycleLength = profile.pcos?.cycle.avgCycleLength ?? 38;
-  const SYMPTOMS = ['Cramps', 'Bloating', 'Acne', 'Fatigue', 'Cravings', 'Mood', 'Headache', 'Skin', 'Sleep'];
-
   return (
     <div className="main-content min-h-screen bg-cream-bg">
       {/* Header */}
       <div className="px-4 pt-4 pb-3 flex items-center gap-3">
         <button onClick={() => navigate(-1)} className="p-2 rounded-full hover:bg-sand">
-          <ArrowLeft size={20} className="text-plum-dark" />
+          <ArrowLeft size={20} className={`text-plum-dark ${directionalIconClass(language)}`} />
         </button>
-        <h1 className="font-semibold text-plum-dark flex-1">Progress</h1>
+        <h1 className="font-semibold text-plum-dark flex-1">{copy.progress.title}</h1>
         <span className={`text-xs px-2.5 py-1 rounded-full font-medium ${
           profile.mode === 'pcos' ? 'bg-sage-primary/20 text-sage-deep' : 'bg-coral-accent/15 text-coral-accent'
         }`}>
-          {profile.mode === 'pcos' ? 'PCOS Mode' : 'Bulk Mode'}
+          {profile.mode === 'pcos' ? copy.progress.modePcos : copy.progress.modeBulk}
         </span>
       </div>
 
@@ -140,9 +140,9 @@ export default function Progress() {
                 period === p ? 'bg-white text-plum-dark shadow-sm' : 'text-ink-60'
               }`}
             >
-              {p}
-            </button>
-          ))}
+                {copy.progress.periods[p]}
+              </button>
+            ))}
         </div>
       </div>
 
@@ -150,7 +150,7 @@ export default function Progress() {
         {/* Weight trend */}
         <div className="bg-cream-card rounded-2xl border border-sand p-4">
           <div className="flex items-center justify-between mb-3">
-            <h2 className="text-sm font-semibold text-plum-dark">Weight trend</h2>
+            <h2 className="text-sm font-semibold text-plum-dark">{copy.progress.weightTrend}</h2>
             <button
               onClick={() => setShowWeightInput(!showWeightInput)}
               className="w-8 h-8 rounded-full bg-sand flex items-center justify-center"
@@ -165,7 +165,7 @@ export default function Progress() {
                 type="number"
                 value={newWeight}
                 onChange={(e) => setNewWeight(e.target.value)}
-                placeholder="Current weight (kg)"
+                placeholder={copy.progress.currentWeightKg}
                 className="flex-1 px-3 py-2 rounded-xl border border-sand text-sm bg-cream-bg"
               />
               <button
@@ -178,7 +178,7 @@ export default function Progress() {
                 }}
                 className="px-3 py-2 bg-sage-deep text-white rounded-xl text-sm font-medium"
               >
-                Log
+                {copy.progress.log}
               </button>
             </div>
           )}
@@ -197,7 +197,7 @@ export default function Progress() {
                   />
                   <Tooltip
                     contentStyle={{ borderRadius: 12, border: '1px solid #EFE4D2', fontSize: 12 }}
-                    formatter={(val: number) => [`${val} kg`, 'Weight']}
+                    formatter={(val: number) => [formatAmountWithUnit(val, 'kg', language, 1), copy.common.weight]}
                   />
                   <Line
                     type="monotone"
@@ -212,20 +212,20 @@ export default function Progress() {
               <p className="text-xs text-ink-60 mt-2">
                 {weightChange > 0 ? '↑' : '↓'}{' '}
                 <span className={`font-semibold ${weightChange > 0 ? (profile.mode === 'bulk' ? 'text-moss' : 'text-terracotta') : (profile.mode === 'bulk' ? 'text-terracotta' : 'text-moss')}`}>
-                  {Math.abs(weightChange).toFixed(1)} kg
+                  {formatAmountWithUnit(Math.abs(weightChange), 'kg', language, 1)}
                 </span>
-                {' '}this {period}
+                {' '}{copy.progress.thisPeriod(copy.progress.periods[period])}
               </p>
             </>
           ) : (
-            <p className="text-sm text-ink-40 text-center py-6">Log weight entries to see your trend.</p>
+            <p className="text-sm text-ink-40 text-center py-6">{copy.progress.logWeightPrompt}</p>
           )}
         </div>
 
         {/* PCOS: Cycle section */}
         {profile.mode === 'pcos' && phaseInfo && (
           <div className="bg-cream-card rounded-2xl border border-sand p-4">
-            <h2 className="text-sm font-semibold text-plum-dark mb-4">Cycle tracking</h2>
+            <h2 className="text-sm font-semibold text-plum-dark mb-4">{copy.progress.cycleTracking}</h2>
 
             {/* Cycle ring */}
             <div className="flex justify-center mb-4">
@@ -263,20 +263,20 @@ export default function Progress() {
 
                 {/* Center text */}
                 <text x="110" y="102" textAnchor="middle" fontSize={13} fontFamily="Fraunces, serif" fontWeight="600" fill="#2D1B2E">
-                  {getPhaseName(phaseInfo.phase).split(' ')[0].toUpperCase()}
+                  {phaseShortName(phaseInfo.phase, language)}
                 </text>
                 <text x="110" y="120" textAnchor="middle" fontSize={11} fontFamily="Inter, sans-serif" fill="#5A4A5C">
-                  Day {phaseInfo.cycleDay}
+                  {copy.dashboard.day} {phaseInfo.cycleDay}
                 </text>
                 <text x="110" y="136" textAnchor="middle" fontSize={10} fontFamily="Inter, sans-serif" fill="#8F7F90">
-                  ~{phaseInfo.daysUntilNextPeriod}d until period
+                  {copy.progress.untilPeriod(phaseInfo.daysUntilNextPeriod)}
                 </text>
               </svg>
             </div>
 
             {/* Phase brief */}
             {(() => {
-              const brief = getPhaseNutritionBrief(phaseInfo.phase);
+               const brief = phaseBrief(phaseInfo.phase, language);
               return (
                 <div className="space-y-2 text-sm">
                   <div className="flex flex-wrap gap-1">
@@ -310,28 +310,28 @@ export default function Progress() {
                 });
               }}
             >
-              📝 Log period start
-            </button>
-          </div>
-        )}
+               📝 {copy.progress.logPeriodStart}
+             </button>
+           </div>
+         )}
 
         {/* Bulk: Training section */}
         {profile.mode === 'bulk' && (
           <div className="bg-cream-card rounded-2xl border border-sand p-4">
-            <h2 className="text-sm font-semibold text-plum-dark mb-3">Training overview</h2>
+            <h2 className="text-sm font-semibold text-plum-dark mb-3">{copy.progress.trainingOverview}</h2>
             <div className="space-y-3">
               <div className="flex items-center justify-between">
-                <span className="text-sm text-ink-60">Today</span>
+                <span className="text-sm text-ink-60">{copy.progress.today}</span>
                 <span className={`text-sm font-semibold ${isTrainingDay ? 'text-coral-accent' : 'text-ink-40'}`}>
-                  {isTrainingDay ? `Training · ${todaySplit ?? 'Day'}` : 'Rest day'}
+                  {isTrainingDay ? `${copy.dashboard.training} · ${todaySplit ?? copy.dashboard.day}` : copy.dashboard.restDay}
                 </span>
               </div>
 
               {/* Weekly schedule */}
               <div>
-                <p className="text-xs text-ink-40 mb-2">Weekly schedule</p>
-                <div className="flex gap-1.5">
-                  {['M', 'T', 'W', 'T', 'F', 'S', 'S'].map((day, i) => {
+                 <p className="text-xs text-ink-40 mb-2">{copy.progress.weeklySchedule}</p>
+                 <div className="flex gap-1.5">
+                   {copy.progress.weekdaysShort.map((day, i) => {
                     const isTrain = profile.bulk?.trainingSchedule.weekPattern[i] === 'training';
                     const isCurrentDay = i === (new Date().getDay() === 0 ? 6 : new Date().getDay() - 1);
                     return (
@@ -352,8 +352,8 @@ export default function Progress() {
                   <div className="flex gap-1.5 mt-1">
                     {profile.bulk.trainingSchedule.split.map((s, i) => (
                       <div key={i} className="flex-1 text-center text-[9px] text-ink-40 truncate">
-                        {s === 'Rest' ? '' : s}
-                      </div>
+                         {s === 'Rest' ? '' : s}
+                       </div>
                     ))}
                   </div>
                 )}
@@ -362,12 +362,12 @@ export default function Progress() {
               {/* Weight progress */}
               {filteredWeight.length >= 2 && (
                 <div className="bg-sand/50 rounded-xl p-3">
-                  <p className="text-xs font-medium text-plum-dark">Weight: {filteredWeight[filteredWeight.length - 1].weight} kg</p>
-                  <p className="text-xs text-ink-60 mt-0.5">
-                    {weightChange > 0 ? '↑' : '↓'} {Math.abs(weightChange).toFixed(1)} kg this {period}
-                    {profile.mode === 'bulk' && weightChange > 0 && ' (on track 💪)'}
-                  </p>
-                </div>
+                   <p className="text-xs font-medium text-plum-dark">{copy.common.weight}: {formatAmountWithUnit(filteredWeight[filteredWeight.length - 1].weight, 'kg', language, 1)}</p>
+                   <p className="text-xs text-ink-60 mt-0.5">
+                     {weightChange > 0 ? '↑' : '↓'} {formatAmountWithUnit(Math.abs(weightChange), 'kg', language, 1)} {copy.progress.thisPeriod(copy.progress.periods[period])}
+                     {profile.mode === 'bulk' && weightChange > 0 && ` (${copy.progress.onTrack} 💪)`}
+                   </p>
+                 </div>
               )}
             </div>
           </div>
@@ -375,12 +375,12 @@ export default function Progress() {
 
         {/* Macro adherence */}
         <div className="bg-cream-card rounded-2xl border border-sand p-4">
-          <h2 className="text-sm font-semibold text-plum-dark mb-3">Macro adherence (last 28 days)</h2>
+           <h2 className="text-sm font-semibold text-plum-dark mb-3">{copy.progress.macroAdherence}</h2>
           <div className="space-y-3">
             {[
-              { label: 'Protein', pct: adherence.protein, color: '#E8876A' },
-              { label: 'Fiber', pct: adherence.fiber, color: '#3F5D3C' },
-              { label: 'Omega-3', pct: adherence.omega3, color: '#3B82F6' },
+               { label: copy.common.protein, pct: adherence.protein, color: '#E8876A' },
+               { label: copy.common.fiber, pct: adherence.fiber, color: '#3F5D3C' },
+               { label: copy.common.omega3, pct: adherence.omega3, color: '#3B82F6' },
             ].map(({ label, pct, color }) => (
               <div key={label}>
                 <div className="flex justify-between text-xs mb-1">
@@ -401,9 +401,9 @@ export default function Progress() {
         {/* PCOS: Symptom tracker */}
         {profile.mode === 'pcos' && (
           <div className="bg-cream-card rounded-2xl border border-sand p-4">
-            <h2 className="text-sm font-semibold text-plum-dark mb-3">Symptom check-in — today</h2>
+             <h2 className="text-sm font-semibold text-plum-dark mb-3">{copy.progress.symptomCheckin}</h2>
 
-            <p className="text-xs text-ink-60 mb-2">How are you feeling?</p>
+             <p className="text-xs text-ink-60 mb-2">{copy.progress.howFeeling}</p>
             <div className="flex gap-2 mb-3">
               {(['good', 'ok', 'low'] as const).map((m) => (
                 <button
@@ -413,14 +413,14 @@ export default function Progress() {
                     todayMood === m ? 'bg-sage-primary/30 text-sage-deep' : 'bg-sand text-ink-60'
                   }`}
                 >
-                  {m === 'good' ? '😊 Good' : m === 'ok' ? '😐 OK' : '😔 Low'}
+                  {copy.progress.mood[m]}
                 </button>
               ))}
             </div>
 
-            <p className="text-xs text-ink-60 mb-2">Symptoms (tap any):</p>
-            <div className="flex flex-wrap gap-1.5">
-              {SYMPTOMS.map((s) => (
+             <p className="text-xs text-ink-60 mb-2">{copy.progress.symptomsTap}</p>
+             <div className="flex flex-wrap gap-1.5">
+               {copy.progress.symptoms.map((s) => (
                 <button
                   key={s}
                   onClick={() => setSelectedSymptoms((prev) =>
@@ -442,9 +442,9 @@ export default function Progress() {
                 onClick={handleLogSymptom}
                 className="mt-3 w-full bg-sage-deep text-white rounded-xl py-2.5 text-sm font-semibold"
               >
-                Save check-in
-              </button>
-            )}
+                 {copy.progress.saveCheckin}
+               </button>
+             )}
           </div>
         )}
       </div>

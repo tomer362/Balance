@@ -6,7 +6,10 @@ export interface Gap {
   severity: 'high' | 'medium' | 'warning' | 'low';
   deficit_g?: number;
   remaining?: number;
-  label: string;
+  unit?: string;
+  status: 'needed' | 'low' | 'remaining' | 'used';
+  actual?: number;
+  target?: number;
 }
 
 export function sumNutrients(meals: NutritionData[]): NutritionData {
@@ -31,8 +34,7 @@ export function analyzeGaps(logged: NutritionData[], targets: Targets): Gap[] {
     nutrient: string,
     actual: number,
     target: number | undefined,
-    unit: string,
-    label: string
+    unit: string
   ) {
     if (!target) return;
     const timeTarget = target * timeAdjustedFactor;
@@ -45,7 +47,8 @@ export function analyzeGaps(logged: NutritionData[], targets: Targets): Gap[] {
         severity: 'high',
         deficit_g: remaining,
         remaining: Math.round(remaining),
-        label: `${label} ${Math.round(remaining)}${unit} needed`,
+        unit,
+        status: 'needed',
       });
     } else if (pct < 0.7 && actual < timeTarget * 0.8) {
       gaps.push({
@@ -53,7 +56,8 @@ export function analyzeGaps(logged: NutritionData[], targets: Targets): Gap[] {
         severity: 'medium',
         deficit_g: remaining,
         remaining: Math.round(remaining),
-        label: `${label} ${Math.round(remaining)}${unit} low`,
+        unit,
+        status: 'low',
       });
     } else if (pct < 0.85 && actual < timeTarget) {
       gaps.push({
@@ -61,17 +65,18 @@ export function analyzeGaps(logged: NutritionData[], targets: Targets): Gap[] {
         severity: 'warning',
         deficit_g: remaining,
         remaining: Math.round(remaining),
-        label: `${label} ${Math.round(remaining)}${unit} remaining`,
+        unit,
+        status: 'remaining',
       });
     }
   }
 
-  check('calories', totals.calories, targets.calories, ' kcal', 'Calories');
-  check('protein', totals.protein_g, targets.protein_g, 'g', 'Protein');
-  check('fiber', totals.fiber_g, targets.fiber_g, 'g', 'Fiber');
-  check('omega3', totals.omega3_g ?? 0, targets.omega3_g, 'g', 'Omega-3');
-  check('carbs', totals.carbs_g, targets.carbs_g, 'g', 'Carbs');
-  check('fat', totals.fat_g, targets.fat_g, 'g', 'Fat');
+  check('calories', totals.calories, targets.calories, ' kcal');
+  check('protein', totals.protein_g, targets.protein_g, 'g');
+  check('fiber', totals.fiber_g, targets.fiber_g, 'g');
+  check('omega3', totals.omega3_g ?? 0, targets.omega3_g, 'g');
+  check('carbs', totals.carbs_g, targets.carbs_g, 'g');
+  check('fat', totals.fat_g, targets.fat_g, 'g');
 
   // Glycemic load: flag if OVER target (it's a cap, not a minimum)
   if (targets.max_glycemic_load) {
@@ -82,7 +87,9 @@ export function analyzeGaps(logged: NutritionData[], targets: Targets): Gap[] {
         nutrient: 'glycemic_load',
         severity: pctUsed > 1.0 ? 'high' : 'warning',
         remaining: Math.round(Math.max(0, targets.max_glycemic_load - totalGL)),
-        label: `GL ${Math.round(totalGL)} / ${targets.max_glycemic_load} used`,
+        actual: Math.round(totalGL),
+        target: targets.max_glycemic_load,
+        status: 'used',
       });
     }
   }

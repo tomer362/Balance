@@ -9,6 +9,7 @@ import { getCurrentPhase } from '../lib/cyclePhase';
 import { fetchByBarcode } from '../lib/openFoodFacts';
 import NutritionDetailSheet from '../components/NutritionDetailSheet';
 import { countMicronutrients, hasMicronutrientData, normalizeNutrition, scaleNutrition, sumNutrition } from '../lib/nutrition';
+import { formatAmountWithUnit, localizeFoodName, mealTypeLabel, useI18n } from '../lib/i18n';
 
 type ScanMode = 'barcode' | 'photo' | 'manual';
 type MealType = LoggedMeal['meal_type'];
@@ -37,6 +38,7 @@ const QUICK_INGREDIENTS = [
 ];
 
 export default function Scanner() {
+  const { copy, language } = useI18n();
   const navigate = useNavigate();
   const profile = useAppStore(selectActiveProfile);
   const logMeal = useAppStore((s) => s.logMeal);
@@ -86,7 +88,7 @@ export default function Scanner() {
 
     const el = document.getElementById('qr-reader');
     if (!el) {
-      setError('Camera view failed to render. Please reload.');
+      setError(copy.scanner.errors.render);
       return;
     }
 
@@ -96,7 +98,7 @@ export default function Scanner() {
       // One more frame – occasionally needed on very slow iPhones
       await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
       if (el.clientWidth === 0) {
-        setError('Camera view not ready. Please try again.');
+          setError(copy.scanner.errors.notReady);
         return;
       }
     }
@@ -108,7 +110,7 @@ export default function Scanner() {
       }
 
       if (camerasRef.current.length === 0) {
-        setError('No camera found on this device.');
+        setError(copy.scanner.errors.noCamera);
         return;
       }
 
@@ -151,13 +153,13 @@ export default function Scanner() {
       setScanning(false);
       const msg = err instanceof Error ? err.message : String(err);
       if (msg.toLowerCase().includes('permission') || msg.toLowerCase().includes('denied')) {
-        setError('Camera access denied. Please allow camera permission in your browser settings and reload.');
+        setError(copy.scanner.errors.denied);
       } else if (msg.toLowerCase().includes('in use') || msg.toLowerCase().includes('busy') || msg.toLowerCase().includes('notreadable')) {
-        setError('Camera is in use by another app. Please close it and try again.');
+        setError(copy.scanner.errors.busy);
       } else if (msg.toLowerCase().includes('notfound') || msg.toLowerCase().includes('no camera')) {
-        setError('No camera found on this device. Use manual entry instead.');
+        setError(copy.scanner.errors.noCameraManual);
       } else {
-        setError('Could not start camera. Make sure you\'re using HTTPS and camera permission is allowed.');
+        setError(copy.scanner.errors.startFailed);
       }
     }
   }
@@ -208,7 +210,7 @@ export default function Scanner() {
       setShowNutritionSheet(false);
       setProduct(result);
     } else {
-      setError(`Product not found for barcode ${barcode}. Try manual entry.`);
+      setError(copy.scanner.errors.productNotFound(barcode));
       isProcessingRef.current = false;
     }
   }
@@ -249,7 +251,7 @@ export default function Scanner() {
       <div className="fixed inset-0 bg-plum-dark flex items-center justify-center">
         <div className="text-white text-center">
           <div className="w-8 h-8 border-2 border-white/30 border-t-white rounded-full animate-spin mx-auto mb-3" />
-          <p className="text-sm">Looking up product…</p>
+          <p className="text-sm">{copy.scanner.loadingProduct}</p>
         </div>
       </div>
     );
@@ -262,7 +264,7 @@ export default function Scanner() {
           <div className="w-16 h-16 bg-white/20 rounded-full flex items-center justify-center mx-auto mb-4">
             <Check size={32} className="text-white" />
           </div>
-          <p className="text-lg font-semibold">Meal logged!</p>
+          <p className="text-lg font-semibold">{copy.scanner.mealLogged}</p>
         </div>
       </div>
     );
@@ -298,7 +300,7 @@ export default function Scanner() {
           >
             <X size={20} className="text-plum-dark" />
           </button>
-          <h1 className="font-semibold text-plum-dark">Scan result</h1>
+          <h1 className="font-semibold text-plum-dark">{copy.scanner.scanResult}</h1>
         </div>
 
         <div className="px-4 pt-4 space-y-4">
@@ -316,7 +318,7 @@ export default function Scanner() {
           <div className="bg-cream-card rounded-2xl p-4 border border-sand">
             <div className="flex items-center justify-between mb-2">
               <span className="text-sm font-semibold text-plum-dark">
-                {profile?.mode === 'bulk' ? 'Bulk Score' : profile?.mode === 'pcos' ? 'PCOS Score' : 'Score'}
+                {profile?.mode === 'bulk' ? copy.scanner.bulkScore : profile?.mode === 'pcos' ? copy.scanner.pcosScore : copy.scanner.score}
               </span>
               <span className="text-2xl font-bold font-display" style={{ color: score >= 8.5 ? '#3F5D3C' : score >= 7 ? '#5C7A58' : '#E8B84F' }}>
                 {score.toFixed(1)} / 10
@@ -331,11 +333,11 @@ export default function Scanner() {
           <div className="bg-cream-card rounded-2xl p-4 border border-sand">
             <div className="flex items-start justify-between gap-3 mb-3">
               <div>
-                <h3 className="text-sm font-semibold text-plum-dark">Nutrition per {servingG}g</h3>
+                <h3 className="text-sm font-semibold text-plum-dark">{copy.scanner.nutritionForServing(servingG)}</h3>
                 <p className="text-xs text-ink-40 mt-1">
                   {hasMicronutrientData(product.nutrition.micronutrients)
-                    ? `${countMicronutrients(product.nutrition.micronutrients)} micronutrients available`
-                    : 'Micronutrients unavailable in this product source'}
+                    ? copy.log.microAvailable(countMicronutrients(product.nutrition.micronutrients))
+                    : copy.scanner.productMicrosUnavailable}
                 </p>
               </div>
               <button
@@ -345,17 +347,17 @@ export default function Scanner() {
                 data-testid="scanner-nutrition-detail-btn"
               >
                 <Info size={14} />
-                Full nutrition
+                {copy.common.fullNutrition}
               </button>
             </div>
             <div className="grid grid-cols-2 gap-y-2 gap-x-4 text-sm">
               {[
-                { label: 'Calories', val: `${servingNutrition.calories} kcal` },
-                { label: 'Protein', val: `${servingNutrition.protein_g.toFixed(1)}g` },
-                { label: 'Carbs', val: `${servingNutrition.carbs_g.toFixed(1)}g` },
-                { label: 'Fiber', val: `${servingNutrition.fiber_g.toFixed(1)}g` },
-                { label: 'Fat', val: `${servingNutrition.fat_g.toFixed(1)}g` },
-                { label: 'Sugar', val: `${servingNutrition.sugar_g.toFixed(1)}g` },
+                { label: copy.nutrition.nutrients.calories, val: formatAmountWithUnit(servingNutrition.calories, copy.common.kcal, language) },
+                { label: copy.nutrition.nutrients.protein, val: formatAmountWithUnit(servingNutrition.protein_g, 'g', language, 1) },
+                { label: copy.nutrition.nutrients.carbs, val: formatAmountWithUnit(servingNutrition.carbs_g, 'g', language, 1) },
+                { label: copy.nutrition.nutrients.fiber, val: formatAmountWithUnit(servingNutrition.fiber_g, 'g', language, 1) },
+                { label: copy.nutrition.nutrients.fat, val: formatAmountWithUnit(servingNutrition.fat_g, 'g', language, 1) },
+                { label: copy.nutrition.nutrients.sugar, val: formatAmountWithUnit(servingNutrition.sugar_g, 'g', language, 1) },
               ].map(({ label, val }) => (
                 <div key={label} className="flex justify-between">
                   <span className="text-ink-60">{label}</span>
@@ -365,7 +367,7 @@ export default function Scanner() {
             </div>
 
             <div className="mt-3 pt-3 border-t border-sand">
-              <label className="text-xs text-ink-60 block mb-2">Serving size (g)</label>
+              <label className="text-xs text-ink-60 block mb-2">{copy.scanner.servingSizeG}</label>
               <input
                 type="number"
                 inputMode="numeric"
@@ -378,7 +380,7 @@ export default function Scanner() {
 
           {/* Meal type */}
           <div className="bg-cream-card rounded-2xl p-4 border border-sand">
-            <h3 className="text-sm font-semibold text-plum-dark mb-3">Meal type</h3>
+              <h3 className="text-sm font-semibold text-plum-dark mb-3">{copy.scanner.mealType}</h3>
             <div className="flex flex-wrap gap-2">
               {mealTypes.map((mt) => (
                 <button
@@ -390,7 +392,7 @@ export default function Scanner() {
                       : 'bg-sand text-ink-60'
                   }`}
                 >
-                  {mt.replace('_', ' ')}
+                  {mealTypeLabel(mt, language)}
                 </button>
               ))}
             </div>
@@ -400,7 +402,7 @@ export default function Scanner() {
             onClick={handleLogMeal}
             className="w-full bg-coral-accent text-white rounded-2xl py-4 font-semibold text-base active:scale-95 transition-transform"
           >
-            Log This Meal
+            {copy.scanner.logThisMeal}
           </button>
         </div>
 
@@ -408,14 +410,14 @@ export default function Scanner() {
           <NutritionDetailSheet
             title={product.name}
             subtitle={hasMicronutrientData(product.nutrition.micronutrients)
-              ? 'Micronutrients from product data'
-              : 'Micronutrients unavailable in this product source'}
+               ? copy.scanner.productMicros
+               : copy.scanner.productMicrosUnavailable}
             nutritionPer100g={{
               ...product.nutrition,
               ingredients: product.ingredients,
             }}
             servingG={servingG}
-            servingLabel={`${servingG} g`}
+            servingLabel={formatAmountWithUnit(servingG, 'g', language)}
             onClose={() => setShowNutritionSheet(false)}
           />
         )}
@@ -471,7 +473,7 @@ export default function Scanner() {
               autoFocus
               value={manualQuery}
               onChange={(e) => setManualQuery(e.target.value)}
-              placeholder="Search for a food…"
+               placeholder={copy.scanner.manualPlaceholder}
               className="w-full px-4 py-3 rounded-2xl bg-white/10 text-white placeholder-white/50 border border-white/20 focus:outline-none focus:border-white/40"
               onKeyDown={(e) => e.key === 'Enter' && navigate(`/log?q=${encodeURIComponent(manualQuery)}`)}
             />
@@ -479,7 +481,7 @@ export default function Scanner() {
               onClick={() => navigate(`/log?q=${encodeURIComponent(manualQuery)}`)}
               className="w-full bg-coral-accent text-white py-3 rounded-2xl font-semibold"
             >
-              Search
+               {copy.scanner.search}
             </button>
           </div>
         )}
@@ -487,7 +489,7 @@ export default function Scanner() {
         {mode === 'photo' && (
           <div className="h-full flex flex-col items-center justify-center px-6">
             <p className="text-white text-center text-sm mb-6 opacity-70">
-              Tap ingredients in your meal to log them
+               {copy.scanner.photoHint}
             </p>
             <div className="grid grid-cols-4 gap-2 w-full">
               {QUICK_INGREDIENTS.map((ing) => (
@@ -502,10 +504,10 @@ export default function Scanner() {
                       : 'bg-white/10 text-white/80'
                   }`}
                 >
-                  {ing.label}
-                </button>
-              ))}
-            </div>
+                   {copy.scanner.quickIngredients[ing.label as keyof typeof copy.scanner.quickIngredients] ?? localizeFoodName(ing.label, language)}
+                 </button>
+               ))}
+             </div>
             {selectedIngredients.length > 0 && (
               <button
                 onClick={() => {
@@ -519,9 +521,9 @@ export default function Scanner() {
                 }}
                 className="mt-6 w-full bg-coral-accent text-white py-3 rounded-2xl font-semibold"
               >
-                Done — {selectedIngredients.length} ingredient{selectedIngredients.length > 1 ? 's' : ''}
-              </button>
-            )}
+                 {copy.scanner.quickIngredientsDone(selectedIngredients.length)}
+               </button>
+             )}
           </div>
         )}
 
@@ -534,14 +536,14 @@ export default function Scanner() {
               <div className="absolute -bottom-0.5 -left-0.5 w-5 h-5 border-b-4 border-l-4 border-white rounded-bl-lg" />
               <div className="absolute -bottom-0.5 -right-0.5 w-5 h-5 border-b-4 border-r-4 border-white rounded-br-lg" />
             </div>
-            <p className="absolute bottom-1/4 text-white/60 text-xs tracking-wide">Point at a barcode</p>
-          </div>
-        )}
+             <p className="absolute bottom-1/4 text-white/60 text-xs tracking-wide">{copy.scanner.pointBarcode}</p>
+           </div>
+         )}
 
         {mode === 'barcode' && !scanning && !error && (
           <div className="absolute inset-0 flex items-center justify-center">
             <div className="border-2 border-white/40 rounded-xl w-64 h-28 flex items-center justify-center">
-              <p className="text-white/50 text-xs">Starting camera…</p>
+               <p className="text-white/50 text-xs">{copy.scanner.startingCamera}</p>
             </div>
           </div>
         )}
@@ -554,13 +556,13 @@ export default function Scanner() {
                 onClick={() => { setError(null); startScanner(); }}
                 className="bg-white/10 text-white px-4 py-2.5 rounded-xl text-sm font-medium border border-white/20"
               >
-                Retry
+                 {copy.scanner.retry}
               </button>
               <button
                 onClick={() => { setError(null); setMode('manual'); }}
                 className="bg-coral-accent text-white px-4 py-2.5 rounded-xl text-sm font-medium"
               >
-                Manual entry
+                 {copy.scanner.manualEntry}
               </button>
             </div>
           </div>
@@ -578,9 +580,9 @@ export default function Scanner() {
                 mode === m ? 'bg-white text-plum-dark shadow-sm' : 'text-white/70'
               }`}
             >
-              {m}
-            </button>
-          ))}
+               {copy.scanner.modes[m]}
+             </button>
+           ))}
         </div>
       </div>
 

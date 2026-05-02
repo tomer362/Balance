@@ -6,11 +6,10 @@ import type { MealItem } from '../store/appStore';
 import { allMeals } from '../data/allMeals';
 import { getSuggestions } from '../lib/suggestionEngine';
 import ScoreBadge from '../components/ScoreBadge';
+import { directionalIconClass, formatAmountWithUnit, formatDateValue, localizeFoodName, mealDisplayName, useI18n } from '../lib/i18n';
 
 type Tab = 'plan' | 'list';
 type SlotKey = 'breakfast' | 'lunch' | 'dinner';
-
-const DAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 
 function getMondayOfWeek(date: Date): Date {
   const d = new Date(date);
@@ -118,6 +117,7 @@ function fallbackItemsForMeal(meal: MealItem): Array<Omit<GroceryItem, 'id' | 'c
 }
 
 export default function Groceries() {
+  const { copy, language } = useI18n();
   const navigate = useNavigate();
   const profile = useAppStore(selectActiveProfile);
   const updateProfile = useAppStore((s) => s.updateProfile);
@@ -163,7 +163,7 @@ export default function Groceries() {
   const plannedMealsForWeek = weekDates.flatMap((d) => {
     const plan = profile.mealPlan[dateKey(d)];
     const ids = [plan?.breakfast, plan?.lunch, plan?.dinner, ...(plan?.snacks ?? [])].filter(Boolean) as string[];
-    return ids.map(getMealById).filter(Boolean) as MealItem[];
+      return ids.map(getMealById).filter(Boolean) as MealItem[];
   });
 
   const groceries = plannedMealsForWeek.reduce<GroceryItem[]>((items, meal) => {
@@ -174,7 +174,7 @@ export default function Groceries() {
       if (existing) {
         existing.amountG += item.amountG;
       } else {
-        items.push({ ...item, id, checked: Boolean(checkedItems[id]) });
+        items.push({ ...item, name: localizeFoodName(item.name, language), id, checked: Boolean(checkedItems[id]) });
       }
     });
     return items;
@@ -226,23 +226,23 @@ export default function Groceries() {
       {/* Header */}
       <div className="px-4 pt-4 pb-3 flex items-center gap-3">
         <button onClick={() => navigate(-1)} className="p-2 rounded-full hover:bg-sand">
-          <ArrowLeft size={20} className="text-plum-dark" />
+          <ArrowLeft size={20} className={`text-plum-dark ${directionalIconClass(language)}`} />
         </button>
         <h1 className="font-semibold text-plum-dark flex-1">
-          {tab === 'plan' ? 'This week' : 'Shopping list'}
+          {tab === 'plan' ? copy.groceries.thisWeek : copy.groceries.shoppingList}
         </h1>
         <div className="flex gap-1 bg-sand rounded-xl p-1">
           <button
             onClick={() => setTab('plan')}
             className={`px-3 py-1 rounded-lg text-xs font-medium transition-all ${tab === 'plan' ? 'bg-white text-plum-dark shadow-sm' : 'text-ink-60'}`}
           >
-            Plan
+            {copy.groceries.plan}
           </button>
           <button
             onClick={() => setTab('list')}
             className={`px-3 py-1 rounded-lg text-xs font-medium transition-all ${tab === 'list' ? 'bg-white text-plum-dark shadow-sm' : 'text-ink-60'}`}
           >
-            List
+            {copy.groceries.list}
           </button>
         </div>
       </div>
@@ -252,7 +252,7 @@ export default function Groceries() {
           {/* Week nav */}
           <div className="px-4 flex items-center gap-2 mb-3">
             <button onClick={() => setWeekOffset(weekOffset - 1)} className="p-1.5 rounded-lg hover:bg-sand">
-              <ChevronLeft size={18} className="text-ink-60" />
+              <ChevronLeft size={18} className={`text-ink-60 ${directionalIconClass(language)}`} />
             </button>
             <div className="flex-1 flex gap-1">
               {weekDates.map((d, i) => (
@@ -267,7 +267,7 @@ export default function Groceries() {
                       : 'text-ink-60'
                   }`}
                 >
-                  <span className="text-[9px] font-medium">{DAYS[i]}</span>
+                  <span className="text-[9px] font-medium">{copy.groceries.days[i]}</span>
                   <span className="text-xs font-semibold">{d.getDate()}</span>
                   {profile.mealPlan[dateKey(d)] && (
                     <span className={`w-1 h-1 rounded-full mt-0.5 ${selectedDayIdx === i ? 'bg-white' : 'bg-sage-primary'}`} />
@@ -276,7 +276,7 @@ export default function Groceries() {
               ))}
             </div>
             <button onClick={() => setWeekOffset(weekOffset + 1)} className="p-1.5 rounded-lg hover:bg-sand">
-              <ChevronRight size={18} className="text-ink-60" />
+              <ChevronRight size={18} className={`text-ink-60 ${directionalIconClass(language)}`} />
             </button>
           </div>
 
@@ -284,10 +284,10 @@ export default function Groceries() {
             <div className="flex items-center justify-between gap-3">
               <div>
                 <p className="text-sm font-medium text-ink-60">
-                  {selectedDate.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}
+                  {formatDateValue(selectedDate, language, { weekday: 'long', month: 'long', day: 'numeric' })}
                 </p>
                 <p className="text-xs text-ink-40">
-                  Plan meals first; the shopping list is generated from this week.
+                  {copy.groceries.planHelper}
                 </p>
               </div>
               <button
@@ -295,7 +295,7 @@ export default function Groceries() {
                 className="flex items-center gap-1.5 rounded-xl bg-sage-deep text-white px-3 py-2 text-xs font-semibold"
               >
                 <Sparkles size={14} />
-                Auto-plan
+                {copy.groceries.autoPlan}
               </button>
             </div>
 
@@ -305,16 +305,16 @@ export default function Groceries() {
                 {meal ? (
                   <div>
                     <div className="flex items-center justify-between">
-                      <span className="text-sm font-medium text-plum-dark">{meal.name}</span>
+                      <span className="text-sm font-medium text-plum-dark">{mealDisplayName(meal, language)}</span>
                       <ScoreBadge score={profile.mode === 'pcos' ? meal.pcos_score : (meal.bulk_score ?? meal.pcos_score)} size="sm" />
                     </div>
-                    <p className="text-xs text-ink-40 mt-1">{meal.nutrition.calories} kcal · {meal.nutrition.protein_g}g P</p>
+                    <p className="text-xs text-ink-40 mt-1">{formatAmountWithUnit(meal.nutrition.calories, copy.common.kcal, language)} · {formatAmountWithUnit(meal.nutrition.protein_g, `g ${copy.common.protein}`, language, 1)}</p>
                     <div className="flex gap-2 mt-2">
                       <button
                         onClick={() => setSwapTarget({ dateKey: selectedKey, slot })}
                         className="text-xs text-ink-60 border border-sand rounded-lg px-2.5 py-1 hover:bg-sand transition-colors"
                       >
-                        Swap
+                        {copy.groceries.swap}
                       </button>
                     </div>
                   </div>
@@ -323,7 +323,7 @@ export default function Groceries() {
                     onClick={() => navigate(`/log?mealType=${slot}`)}
                     className="text-xs text-coral-accent font-medium"
                   >
-                    + Add meal
+                    + {copy.groceries.addMeal}
                   </button>
                 )}
               </div>
@@ -336,9 +336,9 @@ export default function Groceries() {
             >
               <div className="flex items-center gap-2">
                 <ShoppingCart size={18} />
-                <span>Shopping list</span>
+                <span>{copy.groceries.shoppingList}</span>
               </div>
-              <span className="text-sage-primary text-sm">{groceries.length} items from {plannedMealCount} meals</span>
+              <span className="text-sage-primary text-sm">{copy.groceries.itemsFromMeals(groceries.length, plannedMealCount)}</span>
             </button>
           </div>
         </>
@@ -349,16 +349,16 @@ export default function Groceries() {
           {/* Progress */}
           <div className="flex items-center justify-between mb-4">
             <div>
-              <p className="text-sm text-ink-60">
-                <span className="font-semibold text-plum-dark">{checkedCount}</span> / {groceries.length} checked
-              </p>
-              <p className="text-xs text-ink-40">Generated from {plannedMealCount} planned meal{plannedMealCount === 1 ? '' : 's'} this week.</p>
-            </div>
+                <p className="text-sm text-ink-60">
+                  <span className="font-semibold text-plum-dark">{checkedCount}</span> / {groceries.length} {copy.groceries.checkedProgress}
+                </p>
+                <p className="text-xs text-ink-40">{copy.groceries.generatedFromMeals(plannedMealCount)}</p>
+              </div>
             <button
               onClick={autoPlanWeek}
               className="rounded-xl bg-sand text-ink-60 px-3 py-2 text-xs font-semibold"
             >
-              Fill week
+               {copy.groceries.fillWeek}
             </button>
           </div>
 
@@ -371,28 +371,28 @@ export default function Groceries() {
           {groceries.length === 0 && (
             <div className="bg-cream-card border border-sand rounded-3xl p-5 text-center">
               <ShoppingCart size={28} className="text-sage-deep mx-auto mb-3" />
-              <h2 className="font-semibold text-plum-dark">Your list starts with the weekly plan</h2>
+              <h2 className="font-semibold text-plum-dark">{copy.groceries.emptyTitle}</h2>
               <p className="text-sm text-ink-60 mt-1">
-                Add meals to the week, or let Balance fill the week with suggestions, and this list will build itself.
+                {copy.groceries.emptyBody}
               </p>
               <button
                 onClick={autoPlanWeek}
                 className="mt-4 inline-flex items-center gap-2 rounded-2xl bg-sage-deep text-white px-4 py-3 text-sm font-semibold"
               >
                 <Sparkles size={16} />
-                Auto-plan this week
+                {copy.groceries.autoPlanWeek}
               </button>
             </div>
           )}
 
           <div className="space-y-4">
-            {categories.map(([catKey, catMeta]) => {
+            {categories.map(([catKey]) => {
               const items = groceries.filter((g) => g.category === catKey);
               if (items.length === 0) return null;
               return (
                 <div key={catKey}>
                   <h3 className="text-xs font-semibold text-ink-60 mb-2">
-                    {catMeta.label} ({items.filter((i) => !i.checked).length})
+                     {copy.groceries.categories[catKey as keyof typeof copy.groceries.categories]} ({items.filter((i) => !i.checked).length})
                   </h3>
                   <div className="space-y-1.5">
                     {items.map((item) => (
@@ -411,8 +411,8 @@ export default function Groceries() {
                         <span className={`flex-1 text-sm ${item.checked ? 'line-through text-ink-40' : 'text-plum-dark'}`}>
                           {item.name}
                         </span>
-                        <span className="text-xs text-ink-40">{formatAmount(item.amountG)}</span>
-                      </button>
+                         <span className="text-xs text-ink-40">{formatAmount(item.amountG)}</span>
+                       </button>
                     ))}
                   </div>
                 </div>
@@ -434,8 +434,8 @@ export default function Groceries() {
 
             <div className="flex items-center justify-between mb-4">
               <div>
-                <h2 className="font-semibold text-plum-dark">Swap {SLOT_LABELS[swapTarget.slot]}</h2>
-                <p className="text-xs text-ink-60 mt-0.5">Top suggestions for you</p>
+                 <h2 className="font-semibold text-plum-dark">{copy.groceries.swapTitle(copy.groceries.slots[swapTarget.slot])}</h2>
+                 <p className="text-xs text-ink-60 mt-0.5">{copy.groceries.topSuggestions}</p>
               </div>
               <button onClick={() => setSwapTarget(null)} className="p-2 rounded-full hover:bg-sand">
                 <X size={18} className="text-ink-60" />
@@ -450,15 +450,15 @@ export default function Groceries() {
                   className="w-full flex items-center gap-3 bg-cream-card rounded-2xl border border-sand px-4 py-3 text-left hover:border-sage-primary transition-colors"
                 >
                   <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium text-plum-dark truncate">{suggestion.name}</p>
-                    <p className="text-xs text-ink-40 mt-0.5">
-                      {suggestion.nutrition.calories} kcal · {suggestion.nutrition.protein_g}g P
-                    </p>
-                    {suggestion.closedGaps.length > 0 && (
-                      <p className="text-xs text-sage-primary mt-0.5">
-                        Covers: {suggestion.closedGaps.slice(0, 2).join(', ')}
-                      </p>
-                    )}
+                     <p className="text-sm font-medium text-plum-dark truncate">{mealDisplayName(suggestion, language)}</p>
+                     <p className="text-xs text-ink-40 mt-0.5">
+                       {formatAmountWithUnit(suggestion.nutrition.calories, copy.common.kcal, language)} · {formatAmountWithUnit(suggestion.nutrition.protein_g, `g ${copy.common.protein}`, language, 1)}
+                     </p>
+                     {suggestion.closedGaps.length > 0 && (
+                       <p className="text-xs text-sage-primary mt-0.5">
+                         {copy.groceries.covers}: {suggestion.closedGaps.slice(0, 2).join(', ')}
+                       </p>
+                     )}
                   </div>
                   <ScoreBadge
                     score={profile.mode === 'pcos' ? suggestion.pcos_score : (suggestion.bulk_score ?? suggestion.pcos_score)}

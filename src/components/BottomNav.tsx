@@ -1,14 +1,16 @@
 import { NavLink } from 'react-router-dom';
 import { Home, Search, Camera, ShoppingCart, User } from 'lucide-react';
-
-const tabs = [
-  { to: '/', icon: Home, label: 'Home', testId: 'nav-home' },
-  { to: '/log', icon: Search, label: 'Meals', testId: 'nav-log' },
-  { to: '/groceries', icon: ShoppingCart, label: 'Grocery', testId: 'nav-groceries' },
-  { to: '/profile', icon: User, label: 'Profile', testId: 'nav-profile' },
-];
+import { useI18n } from '../lib/i18n';
 
 export default function BottomNav() {
+  const { copy } = useI18n();
+  const tabs = [
+    { to: '/', icon: Home, label: copy.nav.home, testId: 'nav-home' },
+    { to: '/log', icon: Search, label: copy.nav.meals, testId: 'nav-log' },
+    { to: '/groceries', icon: ShoppingCart, label: copy.nav.grocery, testId: 'nav-groceries' },
+    { to: '/profile', icon: User, label: copy.nav.profile, testId: 'nav-profile' },
+  ];
+
   return (
     <nav
       className="fixed bottom-0 left-0 right-0 bg-cream-card border-t border-sand z-50"

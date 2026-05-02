@@ -1,5 +1,6 @@
 import type { Profile } from '../store/appStore';
 import { sumNutrients } from '../lib/gapAnalysis';
+import { formatAmountWithUnit, formatNumber, useI18n } from '../lib/i18n';
 
 interface BalanceWheelProps {
   profile: Profile;
@@ -106,6 +107,7 @@ function ProteinDots({ cx, cy, r, mealsWithProtein, total }: { cx: number; cy: n
 }
 
 export default function BalanceWheel({ profile, size = 280 }: BalanceWheelProps) {
+  const { copy, language } = useI18n();
   const today = new Date().toISOString().split('T')[0];
   const todayMeals = profile.foodLog.filter((m) => m.timestamp.startsWith(today));
   const totals = sumNutrients(todayMeals.map((m) => m.nutrition));
@@ -199,12 +201,12 @@ export default function BalanceWheel({ profile, size = 280 }: BalanceWheelProps)
       <div className="text-center -mt-2">
         <div className="font-display text-3xl font-semibold text-plum-dark tracking-tight">
           {Math.round(totals.calories).toLocaleString()}
-          <span className="text-lg text-ink-40 font-normal"> / {calTarget.toLocaleString()}</span>
+          <span className="text-lg text-ink-40 font-normal"> / {formatNumber(calTarget, language)}</span>
         </div>
         <div className="text-sm text-ink-60 mt-0.5">
           {remaining > 0
-            ? <><span className="font-medium text-plum-dark">{Math.round(remaining).toLocaleString()} kcal</span> remaining</>
-            : <span className="text-terracotta font-medium">Daily target reached</span>
+            ? <><span className="font-medium text-plum-dark">{formatAmountWithUnit(Math.round(remaining), copy.common.kcal, language)}</span> {copy.gaps.remaining}</>
+            : <span className="text-terracotta font-medium">{language === 'he' ? 'היעד היומי הושלם' : 'Daily target reached'}</span>
           }
         </div>
       </div>
@@ -212,10 +214,10 @@ export default function BalanceWheel({ profile, size = 280 }: BalanceWheelProps)
       {/* Ring legend */}
       <div className="flex gap-3 mt-3 flex-wrap justify-center">
         {[
-          { label: 'Calories', color: calColor },
-          { label: 'Protein', color: protColor },
-          { label: isPCOS ? 'Fiber' : 'Carbs', color: isPCOS ? '#3F5D3C' : '#D97706' },
-          { label: isPCOS ? 'Omega-3' : 'Fat', color: isPCOS ? '#3B82F6' : '#B45309' },
+          { label: copy.common.calories, color: calColor },
+          { label: copy.common.protein, color: protColor },
+          { label: isPCOS ? copy.common.fiber : copy.common.carbs, color: isPCOS ? '#3F5D3C' : '#D97706' },
+          { label: isPCOS ? copy.common.omega3 : copy.common.fat, color: isPCOS ? '#3B82F6' : '#B45309' },
         ].map(({ label, color }) => (
           <span key={label} className="flex items-center gap-1 text-xs text-ink-60">
             <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: color }} />

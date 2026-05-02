@@ -9,21 +9,18 @@ import ScoreBadge from '../components/ScoreBadge';
 import NutritionDetailSheet from '../components/NutritionDetailSheet';
 import { sumNutrients } from '../lib/gapAnalysis';
 import { getSuggestions } from '../lib/suggestionEngine';
-import { getCurrentPhase, getPhaseName, getPhaseColor } from '../lib/cyclePhase';
+import { getCurrentPhase, getPhaseColor } from '../lib/cyclePhase';
 import { scoreFood } from '../lib/scoring';
 import BottomSheet from '../components/BottomSheet';
 import { computePCOSTargets, computeBulkTargets, computeMaintainTargets } from '../lib/targetComputation';
 import { countMicronutrients, hasMicronutrientData, scaleNutrition } from '../lib/nutrition';
+import { directionalArrow, directionalIconClass, formatAmountWithUnit, formatCompactAmount, formatDateValue, formatWeightGoal, mealDisplayName, mealTypeLabel, phaseName, useI18n } from '../lib/i18n';
 
-function greetingByHour(): string {
+function greetingByHour(language: 'en' | 'he', greetings: { morning: string; afternoon: string; evening: string }): string {
   const h = new Date().getHours();
-  if (h < 12) return 'Good morning';
-  if (h < 17) return 'Good afternoon';
-  return 'Good evening';
-}
-
-function formatDate(): string {
-  return new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' });
+  if (h < 12) return greetings.morning;
+  if (h < 17) return greetings.afternoon;
+  return greetings.evening;
 }
 
 function isTrainingDay(profile: ReturnType<typeof selectActiveProfile>): boolean {
@@ -41,6 +38,7 @@ function getTodaySplit(profile: ReturnType<typeof selectActiveProfile>): string 
 }
 
 export default function Dashboard() {
+  const { copy, language } = useI18n();
   const navigate = useNavigate();
   const profile = useAppStore(selectActiveProfile);
   const todayMeals = useAppStore(selectTodayMeals);
@@ -78,20 +76,20 @@ export default function Dashboard() {
           style={{ backgroundColor: getPhaseColor(phaseInfo.phase) + '25', color: getPhaseColor(phaseInfo.phase) }}
           onClick={() => navigate('/progress')}
         >
-          {getPhaseName(phaseInfo.phase).toUpperCase()} · Day {phaseInfo.cycleDay}
-          {phaseInfo.phase === 'luteal' && ' · +150 kcal today'}
-          {phaseInfo.phase === 'ovulatory' && ' · −50 kcal today'}
+          {phaseName(phaseInfo.phase, language)} · {copy.dashboard.day} {phaseInfo.cycleDay}
+          {phaseInfo.phase === 'luteal' && ` · +150 ${copy.common.kcal}`}
+          {phaseInfo.phase === 'ovulatory' && ` · −50 ${copy.common.kcal}`}
           {phaseInfo.confidence !== 'high' && (
-            <span className="ml-1 opacity-60">(estimate)</span>
+            <span className="ml-1 opacity-60">({copy.dashboard.estimate})</span>
           )}
         </div>
       )}
 
       <div className="px-5 pt-4 pb-3 flex items-center justify-between">
         <div>
-          <p className="text-xs text-ink-40">{formatDate()}</p>
+          <p className="text-xs text-ink-40">{formatDateValue(new Date(), language, { weekday: 'long', month: 'long', day: 'numeric' })}</p>
           <h1 className="text-lg font-semibold text-plum-dark mt-0.5">
-            {greetingByHour()}, {profile.name}
+            {greetingByHour(language, copy.dashboard.greetings)}, {profile.name}
           </h1>
         </div>
         <div className="flex items-center gap-2">
@@ -100,7 +98,7 @@ export default function Dashboard() {
             <span className={`text-xs px-2.5 py-1 rounded-full font-medium ${
               isTraining ? 'bg-coral-accent/15 text-coral-accent' : 'bg-sand text-ink-60'
             }`}>
-              {isTraining ? `Training · ${todaySplit ?? 'Day'}` : 'Rest Day'}
+              {isTraining ? `${copy.dashboard.training} · ${todaySplit ?? copy.dashboard.day}` : copy.dashboard.restDay}
             </span>
           )}
           <button
@@ -125,16 +123,16 @@ export default function Dashboard() {
         {profile.mode === 'pcos' ? (
           <>
             <StatChip label="Protein" value={`${Math.round(totals.protein_g)}/${Math.round(targets.protein_g)}g`} emoji="🥩" />
-            <StatChip label="Fiber" value={`${Math.round(totals.fiber_g)}/${targets.fiber_g ?? 30}g`} emoji="🌾" />
-            <StatChip label="Omega-3" value={`${((totals.omega3_g ?? 0)).toFixed(1)}g`} emoji="🐟" />
+            <StatChip label={copy.common.fiber} value={`${Math.round(totals.fiber_g)}/${targets.fiber_g ?? 30}g`} emoji="🌾" />
+            <StatChip label={copy.common.omega3} value={`${((totals.omega3_g ?? 0)).toFixed(1)}g`} emoji="🐟" />
             <StatChip label="GL" value={String(Math.round(totals.glycemic_load ?? 0))} emoji="📊" sublabel={`/ ${targets.max_glycemic_load ?? 100}`} />
           </>
         ) : (
           <>
-            <StatChip label="Protein" value={`${Math.round(totals.protein_g)}/${Math.round(targets.protein_g)}g`} emoji="🥩" />
-            <StatChip label="Carbs" value={`${Math.round(totals.carbs_g)}g`} emoji="🍚" />
-            <StatChip label="Fat" value={`${Math.round(totals.fat_g)}g`} emoji="🥑" />
-            <StatChip label="Meals" value={`${todayMeals.length}/${targets.meals_per_day_target ?? 5}`} emoji="🍽️" />
+            <StatChip label={copy.common.protein} value={`${Math.round(totals.protein_g)}/${Math.round(targets.protein_g)}g`} emoji="🥩" />
+            <StatChip label={copy.common.carbs} value={`${Math.round(totals.carbs_g)}g`} emoji="🍚" />
+            <StatChip label={copy.common.fat} value={`${Math.round(totals.fat_g)}g`} emoji="🥑" />
+            <StatChip label={copy.common.meals} value={`${todayMeals.length}/${targets.meals_per_day_target ?? 5}`} emoji="🍽️" />
           </>
         )}
       </div>
@@ -148,26 +146,25 @@ export default function Dashboard() {
           <Scale size={17} />
         </div>
         <div className="flex-1 min-w-0">
-          <p className="text-xs font-semibold text-ink-40 uppercase tracking-wide">Weight check-in</p>
+          <p className="text-xs font-semibold text-ink-40 uppercase tracking-wide">{copy.dashboard.weightCheckIn}</p>
           <p className="text-sm text-plum-dark">
-            {profile.demographics.weight_kg} kg
-            <span className="text-ink-40"> → {profile.demographics.goal_weight_kg} kg goal</span>
+            {formatWeightGoal(profile.demographics.weight_kg, profile.demographics.goal_weight_kg, language, copy.dashboard.goal)}
           </p>
         </div>
-        <ChevronRight size={16} className="text-ink-40" />
+        <ChevronRight size={16} className={`text-ink-40 ${directionalIconClass(language)}`} />
       </button>
 
       {/* Today's meals */}
       <div className="px-5 mt-5">
-        <h2 className="text-sm font-semibold text-ink-60 uppercase tracking-wide mb-3">Today's meals</h2>
+        <h2 className="text-sm font-semibold text-ink-60 uppercase tracking-wide mb-3">{copy.dashboard.todaysMeals}</h2>
         {todayMeals.length === 0 ? (
           <div className="bg-cream-card rounded-2xl p-6 text-center border border-sand/40">
-            <p className="text-ink-40 text-sm">No meals logged yet.</p>
+            <p className="text-ink-40 text-sm">{copy.dashboard.noMeals}</p>
             <button
               onClick={() => navigate('/log')}
               className="mt-3 text-sm font-medium text-coral-accent"
             >
-              Log your first meal →
+              {copy.dashboard.logFirstMeal} {directionalArrow(language)}
             </button>
           </div>
         ) : (
@@ -194,23 +191,23 @@ export default function Dashboard() {
             <div className="flex items-center gap-2">
               <span>{profile.mode === 'bulk' && isTraining ? '💪' : '💡'}</span>
               <span className="text-xs font-bold text-coral-accent uppercase tracking-wide">
-                {profile.mode === 'bulk' && isTraining ? 'Training-day suggestion' : 'Next meal insight'}
+                {profile.mode === 'bulk' && isTraining ? copy.dashboard.trainingSuggestion : copy.dashboard.nextMealInsight}
               </span>
             </div>
           </div>
           <div className="px-4 py-3">
             <div className="flex items-start justify-between gap-3">
               <div className="flex-1">
-                <p className="font-medium text-plum-dark text-sm leading-snug">{topSuggestion.name}</p>
+                <p className="font-medium text-plum-dark text-sm leading-snug">{mealDisplayName(topSuggestion, language)}</p>
                 <div className="flex items-center gap-2 mt-1">
                   <ScoreBadge score={topSuggestion.pcos_score} size="sm" />
-                  <span className="text-xs text-ink-40">{topSuggestion.nutrition.calories} kcal</span>
+                  <span className="text-xs text-ink-40">{formatAmountWithUnit(topSuggestion.nutrition.calories, copy.common.kcal, language)}</span>
                   <span className="text-xs text-ink-40">·</span>
-                  <span className="text-xs text-ink-40">{topSuggestion.prep_time_min} min</span>
+                  <span className="text-xs text-ink-40">{formatAmountWithUnit(topSuggestion.prep_time_min, language === 'he' ? 'דק׳' : 'min', language)}</span>
                 </div>
                 {topSuggestion.closedGaps.length > 0 && (
                   <p className="text-xs text-moss mt-1.5">
-                    Closes: {topSuggestion.closedGaps.map((g) => `✓ ${g}`).join('  ')}
+                    {copy.dashboard.closes}: {topSuggestion.closedGaps.map((g) => `✓ ${g}`).join('  ')}
                   </p>
                 )}
               </div>
@@ -219,7 +216,7 @@ export default function Dashboard() {
               onClick={() => navigate('/suggestions')}
               className="w-full mt-3 flex items-center justify-center gap-1 text-sm font-medium text-coral-accent"
             >
-              See more options <ChevronRight size={15} />
+              {copy.dashboard.seeMoreOptions} <ChevronRight size={15} className={directionalIconClass(language)} />
             </button>
           </div>
         </div>
@@ -229,13 +226,13 @@ export default function Dashboard() {
       {profile.mode === 'bulk' && (
         <div className="mx-5 mt-3 mb-2 bg-sand/60 rounded-2xl px-4 py-3">
           <p className="text-xs text-ink-60">
-            Still need today:{' '}
+            {copy.dashboard.stillNeedToday}{' '}
             <span className="font-semibold text-plum-dark">
-              {Math.round(Math.max(0, targets.protein_g - totals.protein_g))}g protein
+              {formatCompactAmount(Math.round(Math.max(0, targets.protein_g - totals.protein_g)), `g ${copy.common.protein}`, language, 0)}
             </span>
             {', '}
             <span className="font-semibold text-plum-dark">
-              {Math.round(Math.max(0, (targets.carbs_training_day ?? targets.carbs_g) - totals.carbs_g))}g carbs
+              {formatCompactAmount(Math.round(Math.max(0, (targets.carbs_training_day ?? targets.carbs_g) - totals.carbs_g)), `g ${copy.common.carbs}`, language, 0)}
             </span>
           </p>
         </div>
@@ -291,6 +288,7 @@ function WeightUpdateSheet({
   goalWeight: number;
   onClose: () => void;
 }) {
+  const { copy, language } = useI18n();
   const logWeight = useAppStore((s) => s.logWeight);
   const [weightText, setWeightText] = useState(String(currentWeight));
   const parsed = Number(weightText);
@@ -306,14 +304,14 @@ function WeightUpdateSheet({
     <BottomSheet onClose={onClose}>
       <div className="p-5 pb-safe space-y-4" data-testid="weight-update-sheet">
         <div className="flex items-center justify-between">
-          <h3 className="font-semibold text-plum-dark">Update weight</h3>
+          <h3 className="font-semibold text-plum-dark">{copy.dashboard.updateWeight}</h3>
           <button onClick={onClose} className="tap-target flex items-center justify-center">
             <X size={20} className="text-ink-40" />
           </button>
         </div>
 
         <div>
-          <label className="text-xs text-ink-40 block mb-1.5">Current weight (kg)</label>
+          <label className="text-xs text-ink-40 block mb-1.5">{copy.dashboard.currentWeightKg}</label>
           <input
             autoFocus
             type="number"
@@ -327,7 +325,7 @@ function WeightUpdateSheet({
             data-testid="dashboard-weight-input"
           />
           <p className="text-xs text-ink-40 mt-2 text-center">
-            Current goal: {goalWeight} kg. Goal updates automatically for your mode.
+            {copy.dashboard.currentGoal}: {formatAmountWithUnit(goalWeight, 'kg', language)}. {copy.dashboard.goalAuto}
           </p>
         </div>
 
@@ -339,7 +337,7 @@ function WeightUpdateSheet({
           }`}
           data-testid="dashboard-weight-save"
         >
-          Save weight
+          {copy.dashboard.saveWeight}
         </button>
       </div>
     </BottomSheet>
@@ -365,6 +363,7 @@ function EditMealSheet({
   phase?: Phase;
   onClose: () => void;
 }) {
+  const { copy, language } = useI18n();
   const updateMeal = useAppStore((s) => s.updateMeal);
 
   const [name, setName] = useState(meal.name);
@@ -391,7 +390,7 @@ function EditMealSheet({
     <BottomSheet onClose={onClose}>
       <div className="p-5 pb-safe space-y-4" data-testid="edit-meal-sheet">
         <div className="flex items-center justify-between">
-          <h3 className="font-semibold text-plum-dark">Edit meal</h3>
+          <h3 className="font-semibold text-plum-dark">{copy.dashboard.editMeal}</h3>
           <button onClick={onClose} className="tap-target flex items-center justify-center">
             <X size={20} className="text-ink-40" />
           </button>
@@ -399,7 +398,7 @@ function EditMealSheet({
 
         {/* Name */}
         <div>
-          <label className="text-xs text-ink-40 block mb-1.5">Name</label>
+          <label className="text-xs text-ink-40 block mb-1.5">{copy.dashboard.mealName}</label>
           <input
             type="text"
             value={name}
@@ -411,7 +410,7 @@ function EditMealSheet({
 
         {/* Meal type */}
         <div>
-          <label className="text-xs text-ink-40 block mb-1.5">Meal type</label>
+          <label className="text-xs text-ink-40 block mb-1.5">{copy.dashboard.mealType}</label>
           <div className="flex gap-2 flex-wrap">
             {MEAL_TYPES.map((t) => (
               <button
@@ -421,7 +420,7 @@ function EditMealSheet({
                   mealType === t ? 'bg-sage-deep text-white' : 'bg-sand text-ink-60'
                 }`}
               >
-                {t.replace('_', ' ')}
+                {mealTypeLabel(t, language)}
               </button>
             ))}
           </div>
@@ -429,7 +428,7 @@ function EditMealSheet({
 
         {/* Serving */}
         <div>
-          <label className="text-xs text-ink-40 block mb-1.5">Serving (g)</label>
+          <label className="text-xs text-ink-40 block mb-1.5">{copy.dashboard.servingG}</label>
           <div className="flex items-center gap-3">
             <input
               type="number"
@@ -442,7 +441,7 @@ function EditMealSheet({
           </div>
           {scale !== 1 && (
             <p className="text-xs text-ink-40 mt-1 text-center">
-              → {Math.round(meal.nutrition.calories * scale)} kcal · {Math.round(meal.nutrition.protein_g * scale * 10) / 10}g P
+              {directionalArrow(language)} {formatAmountWithUnit(Math.round(meal.nutrition.calories * scale), copy.common.kcal, language)} · {formatCompactAmount(Math.round(meal.nutrition.protein_g * scale * 10) / 10, `g ${copy.common.protein}`, language)}
             </p>
           )}
         </div>
@@ -452,7 +451,7 @@ function EditMealSheet({
           className="w-full bg-sage-deep text-white py-3.5 rounded-2xl font-semibold"
           data-testid="edit-meal-save"
         >
-          Save
+          {copy.common.save}
         </button>
       </div>
     </BottomSheet>

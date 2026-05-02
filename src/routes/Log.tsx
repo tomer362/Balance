@@ -13,6 +13,7 @@ import { countMicronutrients, formatCompactValue, hasMicronutrientData, scaleNut
 import ScoreBadge from '../components/ScoreBadge';
 import BottomSheet from '../components/BottomSheet';
 import NutritionDetailSheet from '../components/NutritionDetailSheet';
+import { directionalIconClass, formatAmountWithUnit, ingredientDisplayName, mealDisplayName, useI18n } from '../lib/i18n';
 
 type TabKey = 'meals' | 'ingredients' | 'build';
 
@@ -54,6 +55,7 @@ interface ServingPickerProps {
 }
 
 function ServingPicker({ defaultG, defaultLabel, onConfirm, onCancel }: ServingPickerProps) {
+  const { copy, language } = useI18n();
   const [gText, setGText] = useState(String(defaultG));
   const g = Math.max(1, Number(gText) || defaultG);
 
@@ -61,13 +63,13 @@ function ServingPicker({ defaultG, defaultLabel, onConfirm, onCancel }: ServingP
     <BottomSheet onClose={onCancel}>
       <div className="p-6 pb-safe space-y-4" data-testid="serving-picker">
         <div className="flex items-center justify-between mb-1">
-          <h3 className="font-semibold text-plum-dark">Serving size</h3>
+          <h3 className="font-semibold text-plum-dark">{copy.log.servingSize}</h3>
           <button onClick={onCancel} className="tap-target flex items-center justify-center">
             <X size={20} className="text-ink-40" />
           </button>
         </div>
 
-        <p className="text-xs text-ink-40">Default: {defaultLabel}</p>
+        <p className="text-xs text-ink-40">{copy.log.defaultServing}: {defaultLabel}</p>
 
         <div className="flex items-center gap-3">
           <button
@@ -86,7 +88,7 @@ function ServingPicker({ defaultG, defaultLabel, onConfirm, onCancel }: ServingP
               className="flex-1 bg-transparent text-center text-lg font-semibold text-plum-dark focus:outline-none"
               data-testid="serving-input"
             />
-            <span className="text-sm text-ink-40">g</span>
+              <span className="text-sm text-ink-40">{language === 'he' ? 'גרם' : 'g'}</span>
           </div>
           <button
             onClick={() => setGText(String(g + 10))}
@@ -107,7 +109,7 @@ function ServingPicker({ defaultG, defaultLabel, onConfirm, onCancel }: ServingP
                 g === preset ? 'bg-sage-deep text-white' : 'bg-sand text-ink-60'
               }`}
             >
-              {preset} g
+              {formatAmountWithUnit(preset, 'g', language)}
             </button>
           ))}
         </div>
@@ -117,7 +119,7 @@ function ServingPicker({ defaultG, defaultLabel, onConfirm, onCancel }: ServingP
           className="w-full bg-sage-deep text-white py-3.5 rounded-2xl font-semibold"
           data-testid="serving-confirm"
         >
-          Add to log
+          {copy.log.addToLog}
         </button>
       </div>
     </BottomSheet>
@@ -140,14 +142,13 @@ interface NutritionSheetState {
 }
 
 export default function Log() {
+  const { copy, language } = useI18n();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const initialQuery = searchParams.get('q') ?? '';
 
   const profile = useAppStore(selectActiveProfile);
   const logMeal = useAppStore((s) => s.logMeal);
-  const language = useAppStore((s) => s.appSettings.language);
-
   const [activeTab, setActiveTab] = useState<TabKey>('ingredients');
   const [query, setQuery] = useState(initialQuery);
 
@@ -169,6 +170,7 @@ export default function Log() {
   const [buildPendingIngredient, setBuildPendingIngredient] = useState<Ingredient | null>(null);
 
   const phaseInfo = profile?.mode === 'pcos' ? getCurrentPhase(profile!) : null;
+  const customMealLabel = copy.log.customMeal;
 
   // ── search effects ─────────────────────────────────────────────────────────
   useEffect(() => {
@@ -206,7 +208,7 @@ export default function Log() {
         timestamp: new Date().toISOString(),
         meal_type: autoMealType(),
         food_id: ingredient.id,
-        name: `${ingredient.name} (${servingG} g)`,
+        name: `${ingredientDisplayName(ingredient, language)} (${servingG} g)`,
         serving_g: servingG,
         nutrition,
         score,
@@ -215,7 +217,7 @@ export default function Log() {
       logMeal(profile.id, logged);
       setPendingIngredient(null);
     },
-    [profile, logMeal, phaseInfo]
+    [profile, logMeal, phaseInfo, language]
   );
 
   const logOff = useCallback(
@@ -274,7 +276,7 @@ export default function Log() {
       id: `log-${Date.now()}-${Math.random().toString(36).slice(2)}`,
       timestamp: new Date().toISOString(),
       meal_type: autoMealType(),
-      name: buildMealName.trim() || 'Custom Meal',
+        name: buildMealName.trim() || customMealLabel,
       serving_g: totalG,
       nutrition,
       score,
@@ -284,7 +286,7 @@ export default function Log() {
     setBuildItems([]);
     setBuildMealName('');
     navigate(-1);
-  }, [profile, logMeal, phaseInfo, buildItems, buildMealName, navigate]);
+  }, [profile, logMeal, phaseInfo, buildItems, buildMealName, navigate, customMealLabel]);
 
   if (!profile) return null;
 
@@ -329,7 +331,7 @@ export default function Log() {
       <div className="sticky top-0 z-10 bg-cream-bg px-4 pt-4 pb-3">
         <div className="flex items-center gap-3 mb-3">
           <button onClick={() => navigate(-1)} className="tap-target flex items-center justify-center rounded-full hover:bg-sand transition-colors">
-            <ArrowLeft size={20} className="text-plum-dark" />
+            <ArrowLeft size={20} className={`text-plum-dark ${directionalIconClass(language)}`} />
           </button>
           <div className="flex-1 flex items-center gap-2 bg-cream-card border border-sand rounded-2xl px-3 py-2.5">
             <Search size={16} className="text-ink-40 flex-shrink-0" />
@@ -337,7 +339,7 @@ export default function Log() {
               autoFocus={!!initialQuery}
               value={query}
               onChange={(e) => setQuery(e.target.value)}
-              placeholder={activeTab === 'meals' ? 'Search meals…' : 'Search ingredients…'}
+               placeholder={activeTab === 'meals' ? copy.log.searchMeals : copy.log.searchIngredients}
               className="flex-1 bg-transparent text-sm text-plum-dark placeholder-ink-40 focus:outline-none"
             />
             {query.length > 0 && (
@@ -357,10 +359,10 @@ export default function Log() {
         {/* Tab bar */}
         <div className="flex gap-1 bg-sand/50 rounded-xl p-1">
           {([
-            { key: 'ingredients', label: 'Ingredients' },
-            { key: 'meals', label: 'Meals' },
-            { key: 'build', label: 'Build meal' },
-          ] as const).map((tab) => (
+             { key: 'ingredients', label: copy.log.tabs.ingredients },
+             { key: 'meals', label: copy.log.tabs.meals },
+             { key: 'build', label: copy.log.tabs.build },
+           ] as const).map((tab) => (
             <button
               key={tab.key}
               onClick={() => setActiveTab(tab.key)}
@@ -370,9 +372,9 @@ export default function Log() {
                   : 'text-ink-40'
               }`}
             >
-              {tab.key === 'build' && buildItems.length > 0 ? `Build (${buildItems.length})` : tab.label}
-            </button>
-          ))}
+               {tab.key === 'build' && buildItems.length > 0 ? copy.log.tabs.buildCount(buildItems.length) : tab.label}
+             </button>
+           ))}
         </div>
       </div>
 
@@ -387,7 +389,7 @@ export default function Log() {
                 {ingResults.length > 0 && (
                   <section>
                     <h2 className="text-xs font-semibold text-ink-40 uppercase tracking-wide mb-2">
-                      Ingredients ({ingResults.length})
+                       {copy.log.ingredientsCount(ingResults.length)}
                     </h2>
                     <div className="space-y-2">
                       {ingResults.map((ing) => (
@@ -400,8 +402,8 @@ export default function Log() {
                           onView={() => setNutritionSheet({
                             title: language === 'he' ? (ing.nameHe ?? ing.name) : ing.name,
                             subtitle: hasMicronutrientData(ing.micronutrients)
-                              ? `${countMicronutrients(ing.micronutrients)} micronutrients available`
-                              : 'Micronutrients not available for this ingredient yet',
+                               ? copy.log.microAvailable(countMicronutrients(ing.micronutrients))
+                               : copy.log.ingredientMicroUnavailable,
                             nutritionPer100g: ingredientToNutrition(ing),
                             servingG: ing.common_serving_g,
                             servingLabel: ing.common_serving_label,
@@ -416,7 +418,7 @@ export default function Log() {
                 {(offLoading || offResults.length > 0) && (
                   <section>
                     <h2 className="text-xs font-semibold text-ink-40 uppercase tracking-wide mb-2">
-                      Israeli products {offLoading ? '…' : `(${offResults.length})`}
+                       {copy.log.israeliProducts} {offLoading ? '…' : `(${offResults.length})`}
                     </h2>
                     {!offLoading && (
                       <div className="space-y-2">
@@ -428,11 +430,11 @@ export default function Log() {
                             onView={() => setNutritionSheet({
                               title: item.name,
                               subtitle: hasMicronutrientData(item.nutrition.micronutrients)
-                                ? 'Micronutrients from product data'
-                                : 'Micronutrients unavailable in this product source',
+                                 ? copy.log.productMicroSource
+                                 : copy.log.productMicroUnavailable,
                               nutritionPer100g: item.nutrition,
                               servingG: 100,
-                              servingLabel: '100 g',
+                               servingLabel: formatAmountWithUnit(100, 'g', language),
                             })}
                           />
                         ))}
@@ -442,7 +444,7 @@ export default function Log() {
                 )}
 
                 {ingResults.length === 0 && offResults.length === 0 && !offLoading && (
-                  <p className="text-sm text-ink-40 text-center py-8">No ingredients found for "{query}"</p>
+                   <p className="text-sm text-ink-40 text-center py-8">{copy.log.noIngredientsFound(query)}</p>
                 )}
               </>
             ) : (
@@ -450,7 +452,7 @@ export default function Log() {
                 {/* Recent */}
                 {recent.length > 0 && (
                   <section>
-                    <h2 className="text-xs font-semibold text-ink-40 uppercase tracking-wide mb-2">Recent</h2>
+                    <h2 className="text-xs font-semibold text-ink-40 uppercase tracking-wide mb-2">{copy.log.recent}</h2>
                     <div className="flex gap-2 overflow-x-auto scrollbar-hide pb-1">
                       {recent.map((m) => (
                         <button
@@ -468,11 +470,11 @@ export default function Log() {
                 {/* Full ingredient list */}
                 <section>
                   <h2 className="text-xs font-semibold text-ink-40 uppercase tracking-wide mb-2">
-                    All ingredients ({ingredientDatabase.length})
-                  </h2>
-                  <p className="text-xs text-ink-40 mb-3">
-                    Full bundled database. Search also checks Hebrew names, tags, and categories.
-                  </p>
+                     {copy.log.allIngredients(ingredientDatabase.length)}
+                   </h2>
+                   <p className="text-xs text-ink-40 mb-3">
+                     {copy.log.bundledDatabase}
+                   </p>
                   <div className="space-y-2">
                     {allIngredients
                       .map((ing) => (
@@ -485,8 +487,8 @@ export default function Log() {
                           onView={() => setNutritionSheet({
                             title: language === 'he' ? (ing.nameHe ?? ing.name) : ing.name,
                             subtitle: hasMicronutrientData(ing.micronutrients)
-                              ? `${countMicronutrients(ing.micronutrients)} micronutrients available`
-                              : 'Micronutrients not available for this ingredient yet',
+                               ? copy.log.microAvailable(countMicronutrients(ing.micronutrients))
+                               : copy.log.ingredientMicroUnavailable,
                             nutritionPer100g: ingredientToNutrition(ing),
                             servingG: ing.common_serving_g,
                             servingLabel: ing.common_serving_label,
@@ -506,8 +508,8 @@ export default function Log() {
             {query.length > 1 ? (
               <section>
                 <h2 className="text-xs font-semibold text-ink-40 uppercase tracking-wide mb-2">
-                  Results {mealFiltered.length > 0 ? `(${mealFiltered.length})` : '— no matches'}
-                </h2>
+                   {copy.log.results(mealFiltered.length)}
+                 </h2>
                 <div className="space-y-2">
                   {mealFiltered.map((meal) => (
                     <MealRow
@@ -515,11 +517,11 @@ export default function Log() {
                       meal={meal}
                       profile={profile}
                       onView={() => setNutritionSheet({
-                        title: meal.name,
-                        subtitle: nutritionSheetSubtitle(meal.nutrition, 'Recipe nutrition'),
+                         title: mealDisplayName(meal, language),
+                         subtitle: nutritionSheetSubtitle(meal.nutrition, copy.log.recipeNutrition),
                         nutritionPer100g: scaleNutrition(meal.nutrition, 100 / 300),
                         servingG: 300,
-                        servingLabel: 'Default serving',
+                         servingLabel: copy.log.defaultServingLabel,
                       })}
                       onLog={quickLogMeal}
                       loggedId={loggedMealId}
@@ -531,7 +533,7 @@ export default function Log() {
               <>
                 {recent.length > 0 && (
                   <section>
-                    <h2 className="text-xs font-semibold text-ink-40 uppercase tracking-wide mb-2">Recent</h2>
+                    <h2 className="text-xs font-semibold text-ink-40 uppercase tracking-wide mb-2">{copy.log.recent}</h2>
                     <div className="flex gap-2 overflow-x-auto scrollbar-hide pb-1">
                       {recent.map((m) => (
                         <button
@@ -547,7 +549,7 @@ export default function Log() {
                 )}
                 <section>
                   <h2 className="text-xs font-semibold text-ink-40 uppercase tracking-wide mb-2">
-                    {profile.mode === 'pcos' ? 'PCOS Favourites' : 'Bulk Favourites'}
+                     {profile.mode === 'pcos' ? copy.log.pcosFavorites : copy.log.bulkFavorites}
                   </h2>
                   <div className="space-y-2">
                     {favorites.map((meal) => (
@@ -556,11 +558,11 @@ export default function Log() {
                         meal={meal}
                         profile={profile}
                         onView={() => setNutritionSheet({
-                          title: meal.name,
-                          subtitle: nutritionSheetSubtitle(meal.nutrition, 'Recipe nutrition'),
+                           title: mealDisplayName(meal, language),
+                           subtitle: nutritionSheetSubtitle(meal.nutrition, copy.log.recipeNutrition),
                           nutritionPer100g: scaleNutrition(meal.nutrition, 100 / 300),
                           servingG: 300,
-                          servingLabel: 'Default serving',
+                           servingLabel: copy.log.defaultServingLabel,
                         })}
                         onLog={quickLogMeal}
                         loggedId={loggedMealId}
@@ -580,7 +582,7 @@ export default function Log() {
             {query.length >= 2 && (
               <section>
                 <h2 className="text-xs font-semibold text-ink-40 uppercase tracking-wide mb-2">
-                  Add to meal
+                   {copy.log.addToMeal}
                 </h2>
                 <div className="space-y-2">
                   {searchIngredients(query).map((ing) => (
@@ -593,13 +595,13 @@ export default function Log() {
                       onView={() => setNutritionSheet({
                         title: language === 'he' ? (ing.nameHe ?? ing.name) : ing.name,
                         subtitle: hasMicronutrientData(ing.micronutrients)
-                          ? `${countMicronutrients(ing.micronutrients)} micronutrients available`
-                          : 'Micronutrients not available for this ingredient yet',
+                           ? copy.log.microAvailable(countMicronutrients(ing.micronutrients))
+                           : copy.log.ingredientMicroUnavailable,
                         nutritionPer100g: ingredientToNutrition(ing),
                         servingG: ing.common_serving_g,
                         servingLabel: ing.common_serving_label,
                       })}
-                      actionLabel="Add"
+                       actionLabel={copy.log.add}
                     />
                   ))}
                 </div>
@@ -610,7 +612,7 @@ export default function Log() {
             {buildItems.length > 0 && (
               <section>
                 <h2 className="text-xs font-semibold text-ink-40 uppercase tracking-wide mb-2">
-                  In this meal ({buildItems.length} ingredient{buildItems.length !== 1 ? 's' : ''})
+                   {copy.log.inThisMeal(buildItems.length)}
                 </h2>
                 <div className="space-y-2">
                   {buildItems.map((bi, idx) => (
@@ -619,20 +621,20 @@ export default function Log() {
                       className="bg-cream-card border border-sand rounded-xl px-4 py-3 flex items-center gap-3"
                     >
                       <div className="flex-1 min-w-0">
-                        <p className="text-sm font-medium text-plum-dark truncate">{bi.ingredient.name}</p>
-                        <p className="text-xs text-ink-40">{bi.serving_g} g · {Math.round(bi.ingredient.calories * bi.serving_g / 100)} kcal</p>
-                      </div>
+                         <p className="text-sm font-medium text-plum-dark truncate">{ingredientDisplayName(bi.ingredient, language)}</p>
+                         <p className="text-xs text-ink-40">{formatAmountWithUnit(bi.serving_g, 'g', language)} · {formatAmountWithUnit(Math.round(bi.ingredient.calories * bi.serving_g / 100), copy.common.kcal, language)}</p>
+                       </div>
                       <button
                         onClick={() => setNutritionSheet({
-                          title: bi.ingredient.name,
-                          subtitle: `${bi.serving_g} g in this custom meal`,
+                           title: ingredientDisplayName(bi.ingredient, language),
+                           subtitle: copy.log.thisCustomMeal(bi.serving_g),
                           nutritionPer100g: ingredientToNutrition(bi.ingredient),
                           servingG: bi.serving_g,
-                          servingLabel: `${bi.serving_g} g`,
+                           servingLabel: formatAmountWithUnit(bi.serving_g, 'g', language),
                         })}
                         className="text-xs font-medium text-sage-deep whitespace-nowrap"
                       >
-                        Details
+                         {copy.log.details}
                       </button>
                       <button
                         onClick={() => setBuildItems((prev) => prev.filter((_, i) => i !== idx))}
@@ -650,31 +652,31 @@ export default function Log() {
             {buildTotals && (
               <div className="bg-cream-card border border-sage-primary/30 rounded-2xl p-4">
                 <div className="flex items-start justify-between gap-3 mb-2">
-                  <p className="text-xs font-semibold text-ink-40 uppercase tracking-wide">Meal totals</p>
+                   <p className="text-xs font-semibold text-ink-40 uppercase tracking-wide">{copy.log.mealTotals}</p>
                   <button
                     type="button"
                     onClick={() => {
                       const totalG = buildItems.reduce((sum, item) => sum + item.serving_g, 0);
                       setNutritionSheet({
-                        title: buildMealName.trim() || 'Custom Meal',
-                        subtitle: nutritionSheetSubtitle(buildTotals, `${totalG} g total`),
+                         title: buildMealName.trim() || copy.log.customMeal,
+                         subtitle: nutritionSheetSubtitle(buildTotals, `${totalG} g total`),
                         nutritionPer100g: scaleNutrition(buildTotals, 100 / totalG),
                         servingG: totalG,
-                        servingLabel: `${totalG} g total`,
+                         servingLabel: `${totalG} g total`,
                       });
                     }}
                     className="text-xs font-medium text-sage-deep"
                     data-testid="build-meal-detail-btn"
                   >
-                    Full nutrition
+                     {copy.log.fullNutrition}
                   </button>
                 </div>
                 <div className="grid grid-cols-4 gap-2 text-center">
                   {[
                     { label: 'kcal', val: buildTotals.calories },
-                    { label: 'Protein', val: `${buildTotals.protein_g}g` },
-                    { label: 'Carbs', val: `${buildTotals.carbs_g}g` },
-                    { label: 'Fat', val: `${buildTotals.fat_g}g` },
+                     { label: copy.common.protein, val: `${buildTotals.protein_g}g` },
+                     { label: copy.common.carbs, val: `${buildTotals.carbs_g}g` },
+                     { label: copy.common.fat, val: `${buildTotals.fat_g}g` },
                   ].map(({ label, val }) => (
                     <div key={label}>
                       <p className="text-sm font-bold text-plum-dark">{val}</p>
@@ -692,7 +694,7 @@ export default function Log() {
                   type="text"
                   value={buildMealName}
                   onChange={(e) => setBuildMealName(e.target.value)}
-                  placeholder="Name this meal (optional)"
+                   placeholder={copy.log.nameThisMeal}
                   className="w-full px-4 py-3 rounded-2xl border border-sand bg-cream-card text-plum-dark placeholder-ink-40 focus:outline-none focus:border-sage-primary"
                 />
                 <button
@@ -700,18 +702,18 @@ export default function Log() {
                   className="w-full bg-sage-deep text-white py-4 rounded-2xl font-semibold flex items-center justify-center gap-2"
                 >
                   <Layers size={18} />
-                  Log meal ({buildItems.length} ingredient{buildItems.length !== 1 ? 's' : ''})
-                </button>
-              </div>
-            )}
+                   {copy.log.logMeal(buildItems.length)}
+                 </button>
+               </div>
+             )}
 
             {buildItems.length === 0 && query.length < 2 && (
               <div className="text-center py-12">
                 <Layers size={36} className="mx-auto text-ink-40 mb-3" />
-                <p className="text-sm font-medium text-ink-60 mb-1">Build a custom meal</p>
-                <p className="text-xs text-ink-40">Search for ingredients above to add them one by one</p>
-              </div>
-            )}
+                 <p className="text-sm font-medium text-ink-60 mb-1">{copy.log.buildMealEmptyTitle}</p>
+                 <p className="text-xs text-ink-40">{copy.log.buildMealEmptyBody}</p>
+               </div>
+             )}
           </>
         )}
       </div>
@@ -781,6 +783,7 @@ function IngredientRow({
   onView: () => void;
   actionLabel?: string;
 }) {
+  const { copy, language: currentLanguage } = useI18n();
   const score = mode === 'pcos' ? ingredient.pcos_score : ingredient.bulk_score;
   const primaryName = language === 'he' ? (ingredient.nameHe ?? ingredient.name) : ingredient.name;
   const secondaryName = language === 'he' && ingredient.nameHe ? ingredient.name : ingredient.nameHe;
@@ -804,7 +807,7 @@ function IngredientRow({
           className="mt-1 text-xs font-medium text-sage-deep"
           data-testid={`ingredient-detail-btn-${ingredient.id}`}
         >
-          Full nutrition
+          {copy.log.fullNutrition}
         </button>
         {ingredient.tags.length > 0 && (
           <div className="flex gap-1 mt-1 flex-wrap">
@@ -819,7 +822,7 @@ function IngredientRow({
         data-testid="ingredient-add-btn"
         className="tap-target w-10 h-10 rounded-full bg-coral-accent text-white flex items-center justify-center flex-shrink-0 active:scale-95 transition-transform"
       >
-        {actionLabel === '+' ? <Plus size={18} /> : <ChevronRight size={16} />}
+        {actionLabel === '+' ? <Plus size={18} /> : <ChevronRight size={16} className={directionalIconClass(currentLanguage)} />}
       </button>
     </div>
   );
@@ -834,13 +837,14 @@ function OFFRow({
   onAdd: () => void;
   onView: () => void;
 }) {
+  const { copy } = useI18n();
   return (
     <div className="bg-cream-card border border-sand rounded-2xl p-3.5 flex items-center gap-3">
       <div className="flex-1 min-w-0">
         <p className="text-sm font-medium text-plum-dark truncate">{item.name}</p>
         <div className="text-xs text-ink-40 mt-0.5">{rowSummary(item.nutrition)}</div>
         <button type="button" onClick={onView} className="mt-1 text-xs font-medium text-sage-deep">
-          Full nutrition
+          {copy.log.fullNutrition}
         </button>
       </div>
       <button
@@ -866,6 +870,7 @@ function MealRow({
   onLog: (m: MealItem) => void;
   loggedId: string | null;
 }) {
+  const { copy, language } = useI18n();
   const score = profile.mode === 'pcos' ? meal.pcos_score : (meal.bulk_score ?? meal.pcos_score);
   const isLogged = loggedId === meal.id;
 
@@ -873,24 +878,24 @@ function MealRow({
     <div className="bg-cream-card border border-sand rounded-2xl p-3.5 flex items-center gap-3">
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-2 flex-wrap">
-          <span className="text-sm font-medium text-plum-dark">{meal.name}</span>
+           <span className="text-sm font-medium text-plum-dark">{mealDisplayName(meal, language)}</span>
           <ScoreBadge score={score} size="sm" />
         </div>
         <div className="text-xs text-ink-40 mt-0.5 flex gap-2">
-          <span>{meal.nutrition.calories} kcal</span>
-          <span>·</span>
-          <span>{meal.nutrition.protein_g}g P</span>
-          <span>·</span>
-          <span>{meal.prep_time_min} min</span>
-        </div>
+           <span>{formatAmountWithUnit(meal.nutrition.calories, copy.common.kcal, language)}</span>
+           <span>·</span>
+           <span>{formatAmountWithUnit(meal.nutrition.protein_g, `g ${copy.common.protein}`, language, 1)}</span>
+           <span>·</span>
+           <span>{formatAmountWithUnit(meal.prep_time_min, language === 'he' ? 'דק׳' : 'min', language)}</span>
+         </div>
         <button
           type="button"
           onClick={onView}
           className="mt-1 text-xs font-medium text-sage-deep"
           data-testid={`meal-detail-btn-${meal.id}`}
         >
-          Full nutrition
-        </button>
+           {copy.log.fullNutrition}
+         </button>
         {meal.gap_coverage.length > 0 && (
           <div className="flex gap-1 mt-1 flex-wrap">
             {meal.gap_coverage.map((g) => (

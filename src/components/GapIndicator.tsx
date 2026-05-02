@@ -1,4 +1,5 @@
 import type { Gap } from '../lib/gapAnalysis';
+import { formatAmountWithUnit, useI18n } from '../lib/i18n';
 
 interface GapIndicatorProps {
   gaps: Gap[];
@@ -19,11 +20,13 @@ function severityColor(severity: Gap['severity']): { bg: string; text: string; d
 }
 
 export default function GapIndicator({ gaps, compact = false }: GapIndicatorProps) {
+  const { copy, language } = useI18n();
+
   if (gaps.length === 0) {
     return (
       <div className="flex items-center gap-2 text-moss text-sm">
         <span className="w-2 h-2 rounded-full bg-moss inline-block" />
-        <span>All targets on track</span>
+        <span>{copy.gaps.allOnTrack}</span>
       </div>
     );
   }
@@ -38,7 +41,9 @@ export default function GapIndicator({ gaps, compact = false }: GapIndicatorProp
             className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium ${colors.bg} ${colors.text}`}
           >
             <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${colors.dot}`} />
-            {gap.label}
+            {gap.nutrient === 'glycemic_load' && gap.actual !== undefined && gap.target !== undefined
+              ? `GL ${formatAmountWithUnit(gap.actual, '', language).replace(' ', '')} / ${formatAmountWithUnit(gap.target, '', language).replace(' ', '')} ${copy.gaps.used}`
+              : `${gap.nutrient === 'calories' ? copy.common.calories : gap.nutrient === 'protein' ? copy.common.protein : gap.nutrient === 'carbs' ? copy.common.carbs : gap.nutrient === 'fat' ? copy.common.fat : gap.nutrient === 'fiber' ? copy.common.fiber : copy.common.omega3} ${gap.remaining ?? 0}${gap.unit ?? ''} ${copy.gaps[gap.status]}`}
           </span>
         );
       })}
