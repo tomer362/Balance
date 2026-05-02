@@ -4,6 +4,30 @@ Goal-aware nutrition tracking for PCOS, bulking, and maintenance.
 
 ## Imported nutrition data
 
+### Ingredient data
+
+The app now combines the curated Israeli ingredient database with generated
+USDA FoodData Central Foundation Foods rows:
+
+```text
+src/data/usdaFoundationIngredients.json
+```
+
+Regenerate the USDA JSON from a public FoodData Central Foundation Foods JSON
+download with:
+
+```bash
+python3 scripts/usda_foundation_to_balance_ingredients.py \
+  path/to/FoodData_Central_foundation_food_json_YYYY-MM-DD.json \
+  src/data/usdaFoundationIngredients.json
+```
+
+USDA FoodData Central publishes Foundation Foods as downloadable JSON. This is
+the supported bulk-data path for ingredients; do not scrape private food
+databases or bypass authentication.
+
+### Meal/product imports
+
 The app can merge external meal/product nutrition rows into the existing meal idea
 catalog. Imported rows live in:
 
