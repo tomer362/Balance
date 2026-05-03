@@ -32,8 +32,30 @@ test.describe('Wellness page', () => {
     await expect(page.getByTestId('water-consistency-summary')).toContainText('1 of 7 days');
     await expect(page.getByTestId('water-consistency-summary')).toContainText('14%');
 
+    await page.getByTestId('workout-goal-edit').click();
     await page.getByTestId('workout-goal-input').fill('2');
+    await page.getByTestId('workout-goal-save').click();
     await page.getByTestId('workout-toggle').click();
     await expect(page.getByTestId('workouts-section')).toContainText('1/2');
+  });
+
+  test('configures browser notification reminders', async ({ page, context }) => {
+    await context.grantPermissions(['notifications']);
+    await page.reload();
+
+    await expect(page.getByTestId('notification-settings')).toBeVisible();
+    await page.getByTestId('notification-permission').click();
+    await expect(page.getByTestId('notification-toggle')).toContainText('Notifications on');
+
+    await page.getByTestId('notification-weight-time').fill('07:45');
+    await page.getByTestId('notification-water-time-1').fill('15:15');
+
+    const stored = await page.evaluate(() => {
+      const data = JSON.parse(localStorage.getItem('balance-storage') ?? '{}');
+      return data.state.profiles[0].habitSettings.notifications;
+    });
+    expect(stored.enabled).toBe(true);
+    expect(stored.weightTime).toBe('07:45');
+    expect(stored.waterTimes[1]).toBe('15:15');
   });
 });

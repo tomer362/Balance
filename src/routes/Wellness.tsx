@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { ArrowLeft, Check, Droplets, Dumbbell, Footprints } from 'lucide-react';
+import { ArrowLeft, Bell, Check, Droplets, Dumbbell, Footprints, Pencil, Save, X } from 'lucide-react';
 import { Bar, BarChart, CartesianGrid, Cell, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 import { defaultHabitSettings, selectActiveProfile, useAppStore } from '../store/appStore';
 import type { DatedNumberLog } from '../store/appStore';
@@ -145,6 +145,8 @@ export default function Wellness() {
   const [waterText, setWaterText] = useState('');
   const [period, setPeriod] = useState<Period>('week');
   const [historySearch, setHistorySearch] = useState('');
+  const [editingWorkoutGoal, setEditingWorkoutGoal] = useState(false);
+  const [workoutGoalText, setWorkoutGoalText] = useState('');
 
   const settings = {
     ...defaultHabitSettings(),
@@ -152,6 +154,10 @@ export default function Wellness() {
     reminders: {
       ...defaultHabitSettings().reminders,
       ...(profile?.habitSettings?.reminders ?? {}),
+    },
+    notifications: {
+      ...defaultHabitSettings().notifications,
+      ...(profile?.habitSettings?.notifications ?? {}),
     },
   };
 
@@ -185,6 +191,10 @@ export default function Wellness() {
     setWaterText(String(logValue(profile?.waterHistory, waterDate) || ''));
   }, [profile?.waterHistory, waterDate]);
 
+  useEffect(() => {
+    setWorkoutGoalText(String(settings.workoutGoalPerWeek));
+  }, [settings.workoutGoalPerWeek]);
+
   if (!profile) return null;
 
   const alerts = [
@@ -213,6 +223,48 @@ export default function Wellness() {
     const parsed = nextValue ?? Number(waterText);
     if (!Number.isFinite(parsed)) return;
     logWater(profile!.id, waterDate, parsed);
+  }
+
+  function saveWorkoutGoal() {
+    const parsed = Math.max(0, Math.min(14, Math.round(Number(workoutGoalText) || 0)));
+    setHabitSettings(profile!.id, { workoutGoalPerWeek: parsed });
+    setWorkoutGoalText(String(parsed));
+    setEditingWorkoutGoal(false);
+  }
+
+  async function requestNotifications() {
+    const nextNotifications = {
+      ...settings.notifications,
+      permissionRequested: true,
+    };
+
+    if (!('Notification' in window)) {
+      setHabitSettings(profile!.id, { notifications: { ...nextNotifications, enabled: false } });
+      return;
+    }
+
+    const permission = await Notification.requestPermission();
+    setHabitSettings(profile!.id, {
+      notifications: {
+        ...nextNotifications,
+        enabled: permission === 'granted',
+      },
+    });
+  }
+
+  function updateNotifications(next: Partial<typeof settings.notifications>) {
+    setHabitSettings(profile!.id, {
+      notifications: {
+        ...settings.notifications,
+        ...next,
+      },
+    });
+  }
+
+  function updateNotificationTime(kind: 'waterTimes' | 'foodTimes', index: number, value: string) {
+    updateNotifications({
+      [kind]: settings.notifications[kind].map((time, timeIndex) => timeIndex === index ? value : time),
+    });
   }
 
   return (
@@ -264,6 +316,47 @@ export default function Wellness() {
           data-testid="wellness-history-search"
         />
 
+        <section className="rounded-3xl border border-sand bg-cream-card p-4" data-testid="notification-settings">
+          <SectionHeader icon={<Bell size={18} />} title={copy.wellness.notifications.title} subtitle={copy.wellness.notifications.subtitle} />
+          <div className="mt-3 grid grid-cols-2 gap-2">
+            <button
+              onClick={requestNotifications}
+              className="rounded-xl bg-sage-deep px-3 py-2 text-xs font-semibold text-white"
+              data-testid="notification-permission"
+            >
+              {copy.wellness.notifications.request}
+            </button>
+            <button
+              onClick={() => updateNotifications({ enabled: !settings.notifications.enabled })}
+              disabled={!('Notification' in window) || Notification.permission !== 'granted'}
+              className={`rounded-xl px-3 py-2 text-xs font-semibold ${
+                settings.notifications.enabled ? 'bg-sage-primary/20 text-sage-deep' : 'bg-sand text-ink-60'
+              } disabled:opacity-50`}
+              data-testid="notification-toggle"
+            >
+              {settings.notifications.enabled ? copy.wellness.notifications.enabled : copy.wellness.notifications.disabled}
+            </button>
+          </div>
+          <div className="mt-3 grid grid-cols-2 gap-2">
+            <TimeField label={copy.wellness.notifications.weight} value={settings.notifications.weightTime} onChange={(value) => updateNotifications({ weightTime: value })} testId="notification-weight-time" />
+            <TimeField label={copy.wellness.notifications.steps} value={settings.notifications.stepsTime} onChange={(value) => updateNotifications({ stepsTime: value })} testId="notification-steps-time" />
+          </div>
+          <div className="mt-3 space-y-2">
+            <p className="text-xs font-semibold text-ink-40 uppercase tracking-wide">{copy.wellness.notifications.water}</p>
+            <div className="grid grid-cols-3 gap-2">
+              {settings.notifications.waterTimes.map((time, index) => (
+                <TimeField key={`water-${index}`} label={`${index + 1}`} value={time} onChange={(value) => updateNotificationTime('waterTimes', index, value)} testId={`notification-water-time-${index}`} />
+              ))}
+            </div>
+            <p className="text-xs font-semibold text-ink-40 uppercase tracking-wide">{copy.wellness.notifications.food}</p>
+            <div className="grid grid-cols-3 gap-2">
+              {settings.notifications.foodTimes.map((time, index) => (
+                <TimeField key={`food-${index}`} label={`${index + 1}`} value={time} onChange={(value) => updateNotificationTime('foodTimes', index, value)} testId={`notification-food-time-${index}`} />
+              ))}
+            </div>
+          </div>
+        </section>
+
         <section ref={stepsRef} className="scroll-mt-24 rounded-3xl border border-sand bg-cream-card p-4" data-testid="steps-section">
           <SectionHeader icon={<Footprints size={18} />} title={copy.wellness.steps.title} subtitle={copy.wellness.steps.subtitle(settings.stepGoal)} />
           <div className="grid grid-cols-2 gap-2 mt-3">
@@ -299,18 +392,56 @@ export default function Wellness() {
             <Metric label={copy.wellness.thisWeek} value={`${workoutsThisWeek}/${settings.workoutGoalPerWeek}`} />
             <Metric label={copy.wellness.remaining} value={String(workoutRemaining)} />
           </div>
-          <label className="mt-3 block text-xs text-ink-60">
-            {copy.wellness.workouts.goalLabel}
-            <input
-              type="number"
-              min="0"
-              max="14"
-              value={settings.workoutGoalPerWeek}
-              onChange={(e) => setHabitSettings(profile.id, { workoutGoalPerWeek: Math.max(0, Math.round(Number(e.target.value) || 0)) })}
-              className="mt-1 w-full rounded-xl border border-sand bg-cream-bg px-3 py-2 text-sm text-plum-dark"
-              data-testid="workout-goal-input"
-            />
-          </label>
+          <div className="mt-3 rounded-2xl border border-sand bg-cream-bg p-3" data-testid="workout-goal-editor">
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <p className="text-xs font-semibold text-ink-40 uppercase tracking-wide">{copy.wellness.workouts.goalLabel}</p>
+                <p className="text-sm font-semibold text-plum-dark">{copy.wellness.workouts.goalValue(settings.workoutGoalPerWeek)}</p>
+              </div>
+              {!editingWorkoutGoal && (
+                <button
+                  onClick={() => setEditingWorkoutGoal(true)}
+                  className="flex h-9 w-9 items-center justify-center rounded-xl bg-sand text-ink-60"
+                  aria-label={copy.wellness.workouts.editGoal}
+                  data-testid="workout-goal-edit"
+                >
+                  <Pencil size={15} />
+                </button>
+              )}
+            </div>
+            {editingWorkoutGoal && (
+              <div className="mt-3 grid grid-cols-[1fr_auto_auto] gap-2">
+                <input
+                  type="number"
+                  min="0"
+                  max="14"
+                  value={workoutGoalText}
+                  onChange={(e) => setWorkoutGoalText(e.target.value)}
+                  className="rounded-xl border border-sand bg-white px-3 py-2 text-sm text-plum-dark"
+                  data-testid="workout-goal-input"
+                />
+                <button
+                  onClick={saveWorkoutGoal}
+                  className="flex h-10 w-10 items-center justify-center rounded-xl bg-sage-deep text-white"
+                  aria-label={copy.common.save}
+                  data-testid="workout-goal-save"
+                >
+                  <Save size={15} />
+                </button>
+                <button
+                  onClick={() => {
+                    setWorkoutGoalText(String(settings.workoutGoalPerWeek));
+                    setEditingWorkoutGoal(false);
+                  }}
+                  className="flex h-10 w-10 items-center justify-center rounded-xl bg-sand text-ink-60"
+                  aria-label={copy.common.close}
+                  data-testid="workout-goal-cancel"
+                >
+                  <X size={15} />
+                </button>
+              </div>
+            )}
+          </div>
           <button
             onClick={() => toggleWorkoutLog(profile.id, today)}
             className={`mt-3 flex w-full items-center justify-center gap-2 rounded-2xl border py-3 text-sm font-semibold ${workoutDoneToday ? 'border-sage-deep bg-sage-deep text-white' : 'border-sand bg-cream-bg text-plum-dark'}`}
@@ -400,6 +531,31 @@ function Metric({ label, value }: { label: string; value: string }) {
       <p className="text-lg font-semibold text-plum-dark font-mono-num">{value}</p>
       <p className="text-[10px] uppercase tracking-wide text-ink-40">{label}</p>
     </div>
+  );
+}
+
+function TimeField({
+  label,
+  value,
+  onChange,
+  testId,
+}: {
+  label: string;
+  value: string;
+  onChange: (value: string) => void;
+  testId: string;
+}) {
+  return (
+    <label className="block text-[11px] font-semibold text-ink-40">
+      {label}
+      <input
+        type="time"
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
+        className="mt-1 w-full rounded-xl border border-sand bg-cream-bg px-2 py-2 text-xs text-plum-dark"
+        data-testid={testId}
+      />
+    </label>
   );
 }
 

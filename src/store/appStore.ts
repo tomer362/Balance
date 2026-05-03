@@ -111,6 +111,15 @@ export interface HabitSettings {
     workouts: boolean;
     water: boolean;
   };
+  notifications: {
+    enabled: boolean;
+    permissionRequested: boolean;
+    weightTime: string;
+    stepsTime: string;
+    waterTimes: string[];
+    foodTimes: string[];
+    sentKeys: string[];
+  };
 }
 
 export interface Profile {
@@ -227,6 +236,15 @@ export function defaultHabitSettings(): HabitSettings {
     workoutGoalPerWeek: 3,
     waterGoalMl: 2500,
     reminders: { steps: true, workouts: true, water: true },
+    notifications: {
+      enabled: false,
+      permissionRequested: false,
+      weightTime: '08:30',
+      stepsTime: '20:30',
+      waterTimes: ['10:30', '14:30', '18:30'],
+      foodTimes: ['09:30', '13:30', '19:30'],
+      sentKeys: [],
+    },
   };
 }
 
@@ -821,6 +839,11 @@ export const useAppStore = create<AppState>()(
                       ...defaultHabitSettings().reminders,
                       ...(p.habitSettings?.reminders ?? {}),
                       ...(updates.reminders ?? {}),
+                    },
+                    notifications: {
+                      ...defaultHabitSettings().notifications,
+                      ...(p.habitSettings?.notifications ?? {}),
+                      ...(updates.notifications ?? {}),
                     },
                   },
                 }
