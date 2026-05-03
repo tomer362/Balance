@@ -17,6 +17,10 @@ import { directionalIconClass, formatAmountWithUnit, ingredientDisplayName, meal
 
 type TabKey = 'meals' | 'ingredients' | 'build';
 
+function isTabKey(value: string | null): value is TabKey {
+  return value === 'meals' || value === 'ingredients' || value === 'build';
+}
+
 // ─── helpers ────────────────────────────────────────────────────────────────
 
 function autoMealType(): LoggedMeal['meal_type'] {
@@ -146,10 +150,12 @@ export default function Log() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const initialQuery = searchParams.get('q') ?? '';
+  const tabParam = searchParams.get('tab');
+  const initialTab: TabKey = isTabKey(tabParam) ? tabParam : 'ingredients';
 
   const profile = useAppStore(selectActiveProfile);
   const logMeal = useAppStore((s) => s.logMeal);
-  const [activeTab, setActiveTab] = useState<TabKey>('ingredients');
+  const [activeTab, setActiveTab] = useState<TabKey>(initialTab);
   const [query, setQuery] = useState(initialQuery);
 
   // Meal-tab state
@@ -173,6 +179,13 @@ export default function Log() {
   const customMealLabel = copy.log.customMeal;
 
   // ── search effects ─────────────────────────────────────────────────────────
+  useEffect(() => {
+    const tab = searchParams.get('tab');
+    if (isTabKey(tab)) {
+      setActiveTab(tab);
+    }
+  }, [searchParams]);
+
   useEffect(() => {
     if (activeTab !== 'ingredients' || query.length < 2) {
       setIngResults([]);

@@ -1,6 +1,6 @@
-import { useState } from 'react';
+import { useState, type ReactNode } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Settings, ChevronRight, X, Scale } from 'lucide-react';
+import { Settings, ChevronRight, X, Scale, UtensilsCrossed, Carrot, LineChart } from 'lucide-react';
 import { useAppStore, selectActiveProfile, selectTodayMeals } from '../store/appStore';
 import type { LoggedMeal, Phase } from '../store/appStore';
 import BalanceWheel from '../components/BalanceWheel';
@@ -153,6 +153,37 @@ export default function Dashboard() {
         </div>
         <ChevronRight size={16} className={`text-ink-40 ${directionalIconClass(language)}`} />
       </button>
+
+      <div className="mx-5 mt-3 bg-cream-card rounded-2xl border border-sand/60 p-3 shadow-sm" data-testid="dashboard-quick-log">
+        <p className="text-xs font-semibold text-ink-40 uppercase tracking-wide">{copy.dashboard.quickLogTitle}</p>
+        <p className="text-[11px] text-ink-40 mt-1">{copy.dashboard.quickLogSubtitle}</p>
+        <div className="grid grid-cols-2 gap-2 mt-3">
+          <ShortcutButton
+            testId="dashboard-shortcut-meals"
+            icon={<UtensilsCrossed size={15} />}
+            label={copy.dashboard.shortcuts.meals}
+            onClick={() => navigate('/log?tab=meals')}
+          />
+          <ShortcutButton
+            testId="dashboard-shortcut-ingredients"
+            icon={<Carrot size={15} />}
+            label={copy.dashboard.shortcuts.ingredients}
+            onClick={() => navigate('/log?tab=ingredients')}
+          />
+          <ShortcutButton
+            testId="dashboard-shortcut-weight-log"
+            icon={<Scale size={15} />}
+            label={copy.dashboard.shortcuts.logWeight}
+            onClick={() => setShowWeightSheet(true)}
+          />
+          <ShortcutButton
+            testId="dashboard-shortcut-weight-history"
+            icon={<LineChart size={15} />}
+            label={copy.dashboard.shortcuts.weightHistory}
+            onClick={() => navigate('/progress')}
+          />
+        </div>
+      </div>
 
       {/* Today's meals */}
       <div className="px-5 mt-5">
@@ -341,6 +372,31 @@ function WeightUpdateSheet({
         </button>
       </div>
     </BottomSheet>
+  );
+}
+
+function ShortcutButton({
+  icon,
+  label,
+  onClick,
+  testId,
+}: {
+  icon: ReactNode;
+  label: string;
+  onClick: () => void;
+  testId: string;
+}) {
+  return (
+    <button
+      onClick={onClick}
+      data-testid={testId}
+      className="rounded-xl border border-sand bg-cream-bg px-3 py-2.5 text-left flex items-center gap-2.5 hover:bg-sand/40 transition-colors"
+    >
+      <span className="w-7 h-7 rounded-lg bg-sage-primary/15 text-sage-deep flex items-center justify-center flex-shrink-0">
+        {icon}
+      </span>
+      <span className="text-xs font-medium text-plum-dark leading-tight">{label}</span>
+    </button>
   );
 }
 

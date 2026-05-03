@@ -73,4 +73,22 @@ test.describe('Dashboard EditMealSheet', () => {
     await expect(page.getByTestId('dashboard-weight-update')).toContainText('80 kg');
     await expect(page.getByTestId('dashboard-weight-update')).toContainText('72 kg');
   });
+
+  test('dashboard quick logging shortcuts are visible', async ({ page }) => {
+    await expect(page.getByTestId('dashboard-quick-log')).toBeVisible();
+    await expect(page.getByTestId('dashboard-shortcut-meals')).toBeVisible();
+    await expect(page.getByTestId('dashboard-shortcut-ingredients')).toBeVisible();
+    await expect(page.getByTestId('dashboard-shortcut-weight-log')).toBeVisible();
+    await expect(page.getByTestId('dashboard-shortcut-weight-history')).toBeVisible();
+  });
+
+  test('meals shortcut opens log page on meals tab', async ({ page }) => {
+    await page.getByTestId('dashboard-shortcut-meals').click();
+    await expect(page).toHaveURL(/\/log\?tab=meals/);
+  });
+
+  test('weight history shortcut opens progress page', async ({ page }) => {
+    await page.getByTestId('dashboard-shortcut-weight-history').click();
+    await expect(page).toHaveURL(/\/progress/);
+  });
 });
