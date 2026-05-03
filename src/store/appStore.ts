@@ -84,10 +84,12 @@ export interface CheatMeal {
   notes?: string;
   /** True when created via the one-tap "did a cheat meal today" toggle */
   isQuickTick?: boolean;
-  /** Detailed nutrition from a catalogue item or manual entry */
+  /** Detailed nutrition from a catalogue item, ingredient basket, or manual entry */
   nutrition?: NutritionData;
   /** Reference to the cheatMealCatalogue item id, if one was selected */
   selectedCheatId?: string;
+  /** Individual ingredients logged for this cheat meal (when built from ingredients) */
+  loggedIngredients?: Array<{ ingredientId: string; amountG: number; name: string }>;
 }
 
 export interface DatedNumberLog {

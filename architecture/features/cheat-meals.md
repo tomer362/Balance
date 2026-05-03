@@ -37,8 +37,10 @@ interface CheatMeal {
   name: string;
   notes?: string;
   isQuickTick?: boolean;     // from one-tap toggle (no name required)
-  nutrition?: NutritionData; // attached when a catalogue item is selected
+  nutrition?: NutritionData; // attached when a catalogue item is selected OR basket is saved
   selectedCheatId?: string;  // reference to cheatMealCatalogue item id
+  loggedIngredients?: Array<{ ingredientId: string; amountG: number; name: string }>;
+  // set when the user builds a cheat meal from individual ingredients
 }
 ```
 
@@ -61,14 +63,25 @@ Status message: green when under limit, terracotta when over.
 
 ### 3. Detailed Log Form
 
-- Date picker + meal name input
+- Date picker + meal name input (optional when using ingredient basket — defaults to "Custom cheat meal")
 - Optional notes textarea
 - **"Add nutrition details" accordion** (collapsed by default):
-  - Searchable scrollable list of the cheat meal catalogue
+
+  **Tab: Full meals**
+  - Searchable scrollable list of the cheat meal catalogue (`cheatMealDatabase.ts`)
   - Selecting a catalogue item pre-fills the name field and attaches `NutritionData`
   - Selected item shows a full macro breakdown (kcal, protein, carbs, fat, sat fat, fiber, sugar, sodium)
   - "Custom / type your own" link exits catalogue mode
-- Add button (enabled when name is non-empty, or a catalogue item is selected)
+
+  **Tab: Ingredients**
+  - Search input using `searchIngredients()` from `ingredientDatabase.ts`
+  - Results list — each row shows name, per-100g kcal/protein, and the common serving label
+  - Clicking an ingredient adds it to the **basket** with `common_serving_g` as the default amount
+  - Basket rows: editable gram input with +5 / −5 steppers, live per-item macros, remove button
+  - **Basket total** panel: sums all scaled `NutritionData` values field-by-field in real time
+  - On save: `basketNutrition` stored as `nutrition`, each basket item stored in `loggedIngredients[]`
+
+- Add button (enabled when name is non-empty, or a catalogue item is selected, or basket has ≥1 item)
 
 ### 4. This Week / History Lists
 
@@ -97,6 +110,28 @@ Macros are general real-world estimates for restaurant portions, not brand-speci
 
 ---
 
+## Ingredient Picker
+
+Uses the shared `src/data/ingredientDatabase.ts` — the same database used by the Food Log feature.
+
+Key helpers consumed:
+- `searchIngredients(query, limit)` — substring search across name/nameHe/tags/category
+- `scaleIngredient(ing, actualG)` — scales per-100g values to the user-chosen gram amount → returns `NutritionData`
+
+Basket summing (inline in `basketNutrition` useMemo):
+```ts
+basket.reduce((acc, { ingredient, amountG }) => {
+  const n = scaleIngredient(ingredient, amountG);
+  return { calories: acc.calories + n.calories, ... }; // all NutritionData fields
+}, zero);
+```
+
+Saved state:
+- `nutrition` ← `basketNutrition` (summed NutritionData)
+- `loggedIngredients` ← `[{ ingredientId, amountG, name }]` for display in history
+
+---
+
 ## i18n Keys (`copy.cheatMeals`)
 
 | Key | Purpose |
@@ -109,3 +144,11 @@ Macros are general real-world estimates for restaurant portions, not brand-speci
 | `catalogueSearch` | Search input placeholder |
 | `customEntry` | Link to exit catalogue mode |
 | `nutritionSummary(kcal, protein)` | Formatted summary string in meal rows |
+| `mealsTab` | "Full meals" tab label |
+| `ingredientsTab` | "Ingredients" tab label |
+| `ingredientSearch` | Ingredient search input placeholder |
+| `ingredientBasketEmpty` | Empty basket hint text |
+| `ingredientAmountLabel` | Gram unit label (`g`) |
+| `basketTotal` | Basket total panel heading |
+| `defaultCheatName` | Auto-name when basket used with no name typed |
+| `noResults` | Search returned zero results |

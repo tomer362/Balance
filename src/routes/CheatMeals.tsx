@@ -1,11 +1,13 @@
 import { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, Check, ChevronDown, ChevronUp, Plus, Search, Trash2 } from 'lucide-react';
+import { ArrowLeft, Check, ChevronDown, ChevronUp, Minus, Plus, Search, Trash2 } from 'lucide-react';
 import { selectActiveProfile, useAppStore } from '../store/appStore';
 import type { CheatMeal, NutritionData } from '../store/appStore';
 import { directionalIconClass, formatDateValue, useI18n } from '../lib/i18n';
 import { cheatMealCatalogue, cheatMealCategories } from '../data/cheatMealDatabase';
 import type { CheatMealCatalogueItem } from '../data/cheatMealDatabase';
+import { searchIngredients, scaleIngredient } from '../data/ingredientDatabase';
+import type { Ingredient } from '../data/ingredientDatabase';
 
 const BASE_WEEKLY_ALLOWANCE = 2;
 
@@ -92,9 +94,16 @@ export default function CheatMeals() {
   const [name, setName] = useState('');
   const [notes, setNotes] = useState('');
   const [showNutritionSection, setShowNutritionSection] = useState(false);
+
+  // Full-meals tab state
   const [catalogueSearch, setCatalogueSearch] = useState('');
   const [selectedCatalogueItem, setSelectedCatalogueItem] = useState<CheatMealCatalogueItem | null>(null);
   const [useCustomName, setUseCustomName] = useState(false);
+
+  // Ingredients tab state
+  const [detailMode, setDetailMode] = useState<'meals' | 'ingredients'>('meals');
+  const [ingredientSearch, setIngredientSearch] = useState('');
+  const [basket, setBasket] = useState<Array<{ ingredient: Ingredient; amountG: number }>>([]);
 
   const meals = useMemo(() => [...(profile?.cheatMeals ?? [])].sort((a, b) => b.date.localeCompare(a.date)), [profile]);
   const currentWeekStart = weekKey(todayStr());
@@ -116,6 +125,30 @@ export default function CheatMeals() {
         cheatMealCategories[item.category].toLowerCase().includes(q),
     );
   }, [catalogueSearch]);
+
+  // Ingredient search results (live)
+  const ingredientResults = useMemo(() => searchIngredients(ingredientSearch, 20), [ingredientSearch]);
+
+  // Sum basket nutritions
+  const basketNutrition = useMemo((): NutritionData | null => {
+    if (basket.length === 0) return null;
+    return basket.reduce<NutritionData>(
+      (acc, { ingredient, amountG }) => {
+        const n = scaleIngredient(ingredient, amountG);
+        return {
+          calories: acc.calories + n.calories,
+          protein_g: acc.protein_g + n.protein_g,
+          carbs_g: acc.carbs_g + n.carbs_g,
+          fiber_g: acc.fiber_g + n.fiber_g,
+          sugar_g: acc.sugar_g + n.sugar_g,
+          fat_g: acc.fat_g + n.fat_g,
+          saturated_fat_g: acc.saturated_fat_g + n.saturated_fat_g,
+          sodium_mg: acc.sodium_mg + n.sodium_mg,
+        };
+      },
+      { calories: 0, protein_g: 0, carbs_g: 0, fiber_g: 0, sugar_g: 0, fat_g: 0, saturated_fat_g: 0, sodium_mg: 0 },
+    );
+  }, [basket]);
 
   if (!profile) return null;
 
@@ -139,12 +172,58 @@ export default function CheatMeals() {
     setCatalogueSearch('');
   }
 
-  function addMeal() {
-    const resolvedName = selectedCatalogueItem && !useCustomName ? selectedCatalogueItem.name : name.trim();
-    if (!resolvedName) return;
+  function addToBasket(ingredient: Ingredient) {
+    setBasket((prev) => {
+      if (prev.find((b) => b.ingredient.id === ingredient.id)) return prev;
+      return [...prev, { ingredient, amountG: ingredient.common_serving_g }];
+    });
+    setIngredientSearch('');
+  }
 
-    const nutrition: NutritionData | undefined =
-      selectedCatalogueItem && !useCustomName ? selectedCatalogueItem.nutrition : undefined;
+  function updateBasketAmount(ingredientId: string, amountG: number) {
+    setBasket((prev) =>
+      prev.map((b) => (b.ingredient.id === ingredientId ? { ...b, amountG: Math.max(1, amountG) } : b)),
+    );
+  }
+
+  function removeFromBasket(ingredientId: string) {
+    setBasket((prev) => prev.filter((b) => b.ingredient.id !== ingredientId));
+  }
+
+  function resetForm() {
+    setName('');
+    setNotes('');
+    setSelectedCatalogueItem(null);
+    setUseCustomName(false);
+    setShowNutritionSection(false);
+    setCatalogueSearch('');
+    setBasket([]);
+    setIngredientSearch('');
+    setDetailMode('meals');
+  }
+
+  function addMeal() {
+    let resolvedName: string;
+    let nutrition: NutritionData | undefined;
+    let selectedCheatId: string | undefined;
+    let loggedIngredients: CheatMeal['loggedIngredients'];
+
+    if (detailMode === 'ingredients' && basket.length > 0) {
+      resolvedName = name.trim() || copy.cheatMeals.defaultCheatName;
+      nutrition = basketNutrition ?? undefined;
+      loggedIngredients = basket.map(({ ingredient, amountG }) => ({
+        ingredientId: ingredient.id,
+        amountG,
+        name: ingredient.name,
+      }));
+    } else if (selectedCatalogueItem && !useCustomName) {
+      resolvedName = selectedCatalogueItem.name;
+      nutrition = selectedCatalogueItem.nutrition;
+      selectedCheatId = selectedCatalogueItem.id;
+    } else {
+      resolvedName = name.trim();
+      if (!resolvedName) return;
+    }
 
     logCheatMeal(profile!.id, {
       id: `cheat-${Date.now()}-${Math.random().toString(36).slice(2)}`,
@@ -152,19 +231,18 @@ export default function CheatMeals() {
       name: resolvedName,
       notes: notes.trim() || undefined,
       nutrition,
-      selectedCheatId: selectedCatalogueItem && !useCustomName ? selectedCatalogueItem.id : undefined,
+      selectedCheatId,
+      loggedIngredients,
     });
 
-    // Reset form
-    setName('');
-    setNotes('');
-    setSelectedCatalogueItem(null);
-    setUseCustomName(false);
-    setShowNutritionSection(false);
-    setCatalogueSearch('');
+    resetForm();
   }
 
-  const canAdd = selectedCatalogueItem && !useCustomName ? true : name.trim().length > 0;
+  const canAdd =
+    (detailMode === 'ingredients' && basket.length > 0) ||
+    (detailMode === 'meals' && selectedCatalogueItem && !useCustomName) ||
+    name.trim().length > 0;
+
 
   return (
     <div className="main-content min-h-screen bg-cream-bg">
@@ -273,81 +351,225 @@ export default function CheatMeals() {
 
           {showNutritionSection && (
             <div className="space-y-3 rounded-2xl border border-sand bg-cream-bg p-3">
-              <p className="text-xs font-semibold text-plum-dark">{copy.cheatMeals.catalogueTitle}</p>
 
-              {/* Search */}
-              <div className="relative">
-                <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-ink-40" />
-                <input
-                  value={catalogueSearch}
-                  onChange={(e) => setCatalogueSearch(e.target.value)}
-                  placeholder={copy.cheatMeals.catalogueSearch}
-                  className="h-9 w-full rounded-xl border border-sand bg-cream-card pl-8 pr-3 text-sm text-plum-dark"
-                  data-testid="cheat-catalogue-search"
-                />
+              {/* Tab switcher */}
+              <div className="flex rounded-xl overflow-hidden border border-sand">
+                <button
+                  type="button"
+                  onClick={() => setDetailMode('meals')}
+                  className={`flex-1 py-1.5 text-xs font-semibold transition-colors ${detailMode === 'meals' ? 'bg-plum-dark text-white' : 'bg-cream-card text-ink-60 hover:bg-sand/30'}`}
+                >
+                  {copy.cheatMeals.mealsTab}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setDetailMode('ingredients')}
+                  className={`flex-1 py-1.5 text-xs font-semibold transition-colors ${detailMode === 'ingredients' ? 'bg-plum-dark text-white' : 'bg-cream-card text-ink-60 hover:bg-sand/30'}`}
+                >
+                  {copy.cheatMeals.ingredientsTab}
+                </button>
               </div>
 
-              {/* Selected item preview */}
-              {selectedCatalogueItem && !useCustomName && (
-                <div className="rounded-xl bg-sage-primary/10 border border-sage-primary/30 px-3 py-2">
-                  <p className="text-xs font-semibold text-sage-deep">{selectedCatalogueItem.name}</p>
-                  <p className="text-[11px] text-ink-60 mt-0.5">
-                    {copy.cheatMeals.nutritionSummary(
-                      selectedCatalogueItem.nutrition.calories,
-                      selectedCatalogueItem.nutrition.protein_g,
-                    )}
-                    {' · '}
-                    {selectedCatalogueItem.servingDescription}
-                  </p>
-                  <div className="mt-1.5 flex flex-wrap gap-x-3 gap-y-0.5 text-[10px] text-ink-40">
-                    <span>Carbs {selectedCatalogueItem.nutrition.carbs_g}g</span>
-                    <span>Fat {selectedCatalogueItem.nutrition.fat_g}g</span>
-                    <span>Sat.fat {selectedCatalogueItem.nutrition.saturated_fat_g}g</span>
-                    <span>Fiber {selectedCatalogueItem.nutrition.fiber_g}g</span>
-                    <span>Sugar {selectedCatalogueItem.nutrition.sugar_g}g</span>
-                    <span>Sodium {selectedCatalogueItem.nutrition.sodium_mg}mg</span>
+              {/* ── Full meals tab ─────────────────────────────────────── */}
+              {detailMode === 'meals' && (
+                <>
+                  <p className="text-xs font-semibold text-plum-dark">{copy.cheatMeals.catalogueTitle}</p>
+
+                  {/* Search */}
+                  <div className="relative">
+                    <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-ink-40" />
+                    <input
+                      value={catalogueSearch}
+                      onChange={(e) => setCatalogueSearch(e.target.value)}
+                      placeholder={copy.cheatMeals.catalogueSearch}
+                      className="h-9 w-full rounded-xl border border-sand bg-cream-card pl-8 pr-3 text-sm text-plum-dark"
+                      data-testid="cheat-catalogue-search"
+                    />
                   </div>
-                </div>
+
+                  {/* Selected item preview */}
+                  {selectedCatalogueItem && !useCustomName && (
+                    <div className="rounded-xl bg-sage-primary/10 border border-sage-primary/30 px-3 py-2">
+                      <p className="text-xs font-semibold text-sage-deep">{selectedCatalogueItem.name}</p>
+                      <p className="text-[11px] text-ink-60 mt-0.5">
+                        {copy.cheatMeals.nutritionSummary(
+                          selectedCatalogueItem.nutrition.calories,
+                          selectedCatalogueItem.nutrition.protein_g,
+                        )}
+                        {' · '}
+                        {selectedCatalogueItem.servingDescription}
+                      </p>
+                      <div className="mt-1.5 flex flex-wrap gap-x-3 gap-y-0.5 text-[10px] text-ink-40">
+                        <span>Carbs {selectedCatalogueItem.nutrition.carbs_g}g</span>
+                        <span>Fat {selectedCatalogueItem.nutrition.fat_g}g</span>
+                        <span>Sat.fat {selectedCatalogueItem.nutrition.saturated_fat_g}g</span>
+                        <span>Fiber {selectedCatalogueItem.nutrition.fiber_g}g</span>
+                        <span>Sugar {selectedCatalogueItem.nutrition.sugar_g}g</span>
+                        <span>Sodium {selectedCatalogueItem.nutrition.sodium_mg}mg</span>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Catalogue list */}
+                  <div className="max-h-56 overflow-y-auto space-y-1 pr-0.5" data-testid="cheat-catalogue-list">
+                    {filteredCatalogue.map((item) => (
+                      <button
+                        key={item.id}
+                        type="button"
+                        onClick={() => handleSelectCatalogueItem(item)}
+                        className={`w-full rounded-xl border px-3 py-2 text-left transition-colors ${
+                          selectedCatalogueItem?.id === item.id && !useCustomName
+                            ? 'border-sage-deep bg-sage-primary/10'
+                            : 'border-sand bg-cream-card hover:bg-sand/30'
+                        }`}
+                      >
+                        <div className="flex items-center justify-between gap-2">
+                          <p className="text-xs font-semibold text-plum-dark leading-snug">{item.name}</p>
+                          <span className="shrink-0 rounded-full bg-sand px-2 py-0.5 text-[9px] uppercase tracking-wide text-ink-40">
+                            {cheatMealCategories[item.category]}
+                          </span>
+                        </div>
+                        <p className="text-[10px] text-ink-40 mt-0.5">
+                          {item.nutrition.calories} kcal · {item.nutrition.protein_g}g protein · {item.servingDescription}
+                        </p>
+                      </button>
+                    ))}
+                  </div>
+
+                  {/* Custom mode link */}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setUseCustomName(true);
+                      setSelectedCatalogueItem(null);
+                      setShowNutritionSection(false);
+                    }}
+                    className="text-xs text-ink-40 hover:text-plum-dark underline underline-offset-2"
+                  >
+                    {copy.cheatMeals.customEntry}
+                  </button>
+                </>
               )}
 
-              {/* Catalogue list */}
-              <div className="max-h-56 overflow-y-auto space-y-1 pr-0.5" data-testid="cheat-catalogue-list">
-                {filteredCatalogue.map((item) => (
-                  <button
-                    key={item.id}
-                    type="button"
-                    onClick={() => handleSelectCatalogueItem(item)}
-                    className={`w-full rounded-xl border px-3 py-2 text-left transition-colors ${
-                      selectedCatalogueItem?.id === item.id && !useCustomName
-                        ? 'border-sage-deep bg-sage-primary/10'
-                        : 'border-sand bg-cream-card hover:bg-sand/30'
-                    }`}
-                  >
-                    <div className="flex items-center justify-between gap-2">
-                      <p className="text-xs font-semibold text-plum-dark leading-snug">{item.name}</p>
-                      <span className="shrink-0 rounded-full bg-sand px-2 py-0.5 text-[9px] uppercase tracking-wide text-ink-40">
-                        {cheatMealCategories[item.category]}
-                      </span>
-                    </div>
-                    <p className="text-[10px] text-ink-40 mt-0.5">
-                      {item.nutrition.calories} kcal · {item.nutrition.protein_g}g protein · {item.servingDescription}
-                    </p>
-                  </button>
-                ))}
-              </div>
+              {/* ── Ingredients tab ───────────────────────────────────── */}
+              {detailMode === 'ingredients' && (
+                <>
+                  {/* Search box */}
+                  <div className="relative">
+                    <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-ink-40" />
+                    <input
+                      value={ingredientSearch}
+                      onChange={(e) => setIngredientSearch(e.target.value)}
+                      placeholder={copy.cheatMeals.ingredientSearch}
+                      className="h-9 w-full rounded-xl border border-sand bg-cream-card pl-8 pr-3 text-sm text-plum-dark"
+                      data-testid="cheat-ingredient-search"
+                    />
+                  </div>
 
-              {/* Custom mode link */}
-              <button
-                type="button"
-                onClick={() => {
-                  setUseCustomName(true);
-                  setSelectedCatalogueItem(null);
-                  setShowNutritionSection(false);
-                }}
-                className="text-xs text-ink-40 hover:text-plum-dark underline underline-offset-2"
-              >
-                {copy.cheatMeals.customEntry}
-              </button>
+                  {/* Search results */}
+                  {ingredientSearch.trim().length > 0 && (
+                    <div className="max-h-48 overflow-y-auto space-y-1 pr-0.5" data-testid="cheat-ingredient-results">
+                      {ingredientResults.length === 0 ? (
+                        <p className="text-xs text-ink-40 px-1">{copy.cheatMeals.noResults}</p>
+                      ) : (
+                        ingredientResults.map((ing) => (
+                          <button
+                            key={ing.id}
+                            type="button"
+                            onClick={() => addToBasket(ing)}
+                            disabled={!!basket.find((b) => b.ingredient.id === ing.id)}
+                            className={`w-full rounded-xl border px-3 py-2 text-left transition-colors ${
+                              basket.find((b) => b.ingredient.id === ing.id)
+                                ? 'border-sage-primary/40 bg-sage-primary/5 opacity-60'
+                                : 'border-sand bg-cream-card hover:bg-sand/30'
+                            }`}
+                          >
+                            <div className="flex items-center justify-between gap-2">
+                              <p className="text-xs font-semibold text-plum-dark leading-snug">
+                                {language === 'he' && ing.nameHe ? ing.nameHe : ing.name}
+                              </p>
+                              <Plus size={13} className="shrink-0 text-ink-40" />
+                            </div>
+                            <p className="text-[10px] text-ink-40 mt-0.5">
+                              {ing.calories} kcal · {ing.protein_g}g protein · per 100g · {ing.common_serving_label}
+                            </p>
+                          </button>
+                        ))
+                      )}
+                    </div>
+                  )}
+
+                  {/* Basket */}
+                  {basket.length === 0 ? (
+                    <p className="text-xs text-ink-40 text-center py-3">{copy.cheatMeals.ingredientBasketEmpty}</p>
+                  ) : (
+                    <div className="space-y-2" data-testid="cheat-ingredient-basket">
+                      {basket.map(({ ingredient, amountG }) => {
+                        const scaled = scaleIngredient(ingredient, amountG);
+                        return (
+                          <div key={ingredient.id} className="rounded-xl border border-sand bg-cream-card px-3 py-2">
+                            <div className="flex items-center gap-2">
+                              <p className="flex-1 text-xs font-semibold text-plum-dark leading-snug">
+                                {language === 'he' && ingredient.nameHe ? ingredient.nameHe : ingredient.name}
+                              </p>
+                              {/* Amount stepper */}
+                              <div className="flex items-center gap-1">
+                                <button
+                                  type="button"
+                                  onClick={() => updateBasketAmount(ingredient.id, amountG - 5)}
+                                  className="flex h-6 w-6 items-center justify-center rounded-full bg-sand text-ink-60 hover:bg-sand/70"
+                                >
+                                  <Minus size={11} />
+                                </button>
+                                <input
+                                  type="number"
+                                  min={1}
+                                  value={amountG}
+                                  onChange={(e) => updateBasketAmount(ingredient.id, Number(e.target.value))}
+                                  className="h-7 w-14 rounded-lg border border-sand bg-cream-bg text-center text-xs text-plum-dark"
+                                />
+                                <span className="text-[10px] text-ink-40">{copy.cheatMeals.ingredientAmountLabel}</span>
+                                <button
+                                  type="button"
+                                  onClick={() => updateBasketAmount(ingredient.id, amountG + 5)}
+                                  className="flex h-6 w-6 items-center justify-center rounded-full bg-sand text-ink-60 hover:bg-sand/70"
+                                >
+                                  <Plus size={11} />
+                                </button>
+                              </div>
+                              <button
+                                type="button"
+                                onClick={() => removeFromBasket(ingredient.id)}
+                                className="ml-1 text-terracotta hover:text-terracotta/70"
+                              >
+                                <Trash2 size={13} />
+                              </button>
+                            </div>
+                            <p className="text-[10px] text-ink-40 mt-1">
+                              {Math.round(scaled.calories)} kcal · {Math.round(scaled.protein_g)}g P · {Math.round(scaled.carbs_g)}g C · {Math.round(scaled.fat_g)}g F
+                            </p>
+                          </div>
+                        );
+                      })}
+
+                      {/* Basket total */}
+                      {basketNutrition && (
+                        <div className="rounded-xl bg-sage-primary/10 border border-sage-primary/30 px-3 py-2">
+                          <p className="text-xs font-semibold text-sage-deep">{copy.cheatMeals.basketTotal}</p>
+                          <div className="mt-1 flex flex-wrap gap-x-3 gap-y-0.5 text-[10px] text-ink-60">
+                            <span>{Math.round(basketNutrition.calories)} kcal</span>
+                            <span>{Math.round(basketNutrition.protein_g)}g protein</span>
+                            <span>{Math.round(basketNutrition.carbs_g)}g carbs</span>
+                            <span>{Math.round(basketNutrition.fat_g)}g fat</span>
+                            <span>{Math.round(basketNutrition.fiber_g)}g fiber</span>
+                            <span>{Math.round(basketNutrition.sodium_mg)}mg sodium</span>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </>
+              )}
             </div>
           )}
 

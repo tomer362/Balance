@@ -37,7 +37,14 @@ Re-exports the combined `mealDatabase + importedMealDatabase` array. All feature
 
 ### `src/data/ingredientDatabase.ts`
 
-Israeli/Mediterranean ingredient reference. Used for ingredient-level search and micronutrient lookup.
+Israeli/Mediterranean ingredient reference. Used for ingredient-level search and micronutrient lookup in two features:
+1. **Food Log** — ingredient search when logging meals
+2. **Cheat Meals** — "Ingredients" tab lets users build a cheat meal from individual ingredients with custom gram amounts
+
+Key exports:
+- `searchIngredients(query, limit)` — substring search on name/nameHe/tags/category
+- `scaleIngredient(ing, actualG)` — scales per-100g values to actual grams, returns `NutritionData`
+- `ingredientToNutrition(ing)` — converts an `Ingredient` to `NutritionData` at 100g
 
 ### `src/data/usdaFoundationIngredients.json`
 
@@ -70,9 +77,9 @@ Each entry (`CheatMealCatalogueItem`) has:
 Build time
   mealDatabase.ts  ─┐
   importedMeals.ts  ├──▶  allMeals.ts  ──▶  Suggestions, Log, Groceries
-  ingredientDB.ts   ─┘
+  ingredientDB.ts   ─┘──────────────────────▶  Food Log (search), CheatMeals (ingredient tab)
 
-  cheatMealDatabase.ts  ──▶  CheatMeals feature
+  cheatMealDatabase.ts  ──▶  CheatMeals feature (Full meals tab)
 
 Runtime (user actions)
   appStore.ts (Zustand persist)  ──▶  foodLog, cheatMeals, weightHistory, etc.
