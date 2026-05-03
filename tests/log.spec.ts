@@ -23,6 +23,15 @@ test.describe('Log page', () => {
     await expect(page.getByText('Chicken breast (cooked, roasted/grilled)')).toBeVisible({ timeout: 3000 });
   });
 
+  test('yogurt search shows explicit Israeli fat percentages instead of vague full fat', async ({ page }) => {
+    await page.getByPlaceholder(/search/i).fill('yogurt');
+
+    await expect(page.getByText(/Greek yogurt 10% fat/i)).toBeVisible({ timeout: 3000 });
+    await expect(page.getByText(/Yogurt 5% fat/i)).toBeVisible();
+    await expect(page.getByText(/BIO white yogurt 2\.8% fat/i)).toBeVisible();
+    await expect(page.getByText('Greek yogurt, full fat')).not.toBeVisible();
+  });
+
   test('clicking ingredient + button opens serving picker', async ({ page }) => {
     await page.getByPlaceholder(/search/i).fill('egg');
     await page.getByTestId('ingredient-add-btn').first().click();

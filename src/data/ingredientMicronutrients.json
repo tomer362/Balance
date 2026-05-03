@@ -108,14 +108,36 @@
   },
   "greek-yogurt-full": {
     "iron_mg": 0.12,
-    "calcium_mg": 148,
-    "magnesium_mg": 31.3,
-    "potassium_mg": 183.8,
+    "calcium_mg": 200,
+    "magnesium_mg": 16,
+    "potassium_mg": 141,
     "zinc_mg": 0.24,
     "vitamin_d_mcg": 0.05,
     "vitamin_b12_mcg": 0.37,
     "folate_mcg": 6.2,
-    "vitamin_c_mg": 2.3
+    "vitamin_c_mg": 0
+  },
+  "yogurt-5pct-israeli": {
+    "iron_mg": 0.08,
+    "calcium_mg": 178,
+    "magnesium_mg": 14,
+    "potassium_mg": 155,
+    "zinc_mg": 0.45,
+    "vitamin_d_mcg": 0,
+    "vitamin_b12_mcg": 0.4,
+    "folate_mcg": 7,
+    "vitamin_c_mg": 0
+  },
+  "yogurt-2_8pct-israeli": {
+    "iron_mg": 0.06,
+    "calcium_mg": 160,
+    "magnesium_mg": 13,
+    "potassium_mg": 175,
+    "zinc_mg": 0.4,
+    "vitamin_d_mcg": 0,
+    "vitamin_b12_mcg": 0.38,
+    "folate_mcg": 7,
+    "vitamin_c_mg": 0
   },
   "greek-yogurt-0pct": {
     "iron_mg": 0.06,
