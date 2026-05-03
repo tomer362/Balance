@@ -9,7 +9,7 @@ import { scoreFood } from '../lib/scoring';
 import { getCurrentPhase } from '../lib/cyclePhase';
 import GapIndicator from '../components/GapIndicator';
 import ScoreBadge from '../components/ScoreBadge';
-import { directionalIconClass, formatAmountWithUnit, mealDisplayName, mealInstructions, useI18n } from '../lib/i18n';
+import { directionalIconClass, formatAmountWithUnit, mealDisplayName, mealInstructions, phaseBrief, phaseName, useI18n } from '../lib/i18n';
 
 type Filter = 'all' | 'quick' | 'no-cook' | 'veg';
 
@@ -75,6 +75,18 @@ export default function Suggestions() {
 
         {/* Gaps */}
         <GapIndicator gaps={gaps} />
+
+        {phaseInfo && (
+          <div className="mt-3 rounded-2xl border border-sage-primary/20 bg-sage-primary/10 px-3 py-2" data-testid="phase-aware-explainer">
+            <p className="text-xs font-semibold text-sage-deep">{copy.suggestions.phaseAwareTitle}</p>
+            <p className="text-xs text-ink-60 mt-1">
+              {copy.suggestions.phaseAwareBody(
+                phaseName(phaseInfo.phase, language),
+                phaseBrief(phaseInfo.phase, language).priorities.slice(0, 3).join(', ')
+              )}
+            </p>
+          </div>
+        )}
 
         {/* Filters */}
         <div className="flex gap-2 mt-3 overflow-x-auto scrollbar-hide pb-1">

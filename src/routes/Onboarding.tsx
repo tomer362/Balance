@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { ArrowRight, ChevronLeft } from 'lucide-react';
-import { useAppStore } from '../store/appStore';
+import { defaultHabitSettings, useAppStore } from '../store/appStore';
 import type { Profile } from '../store/appStore';
 import { computePCOSTargets, computeBulkTargets, computeMaintainTargets } from '../lib/targetComputation';
 import { directionalIconClass, sexLabel, useI18n } from '../lib/i18n';
@@ -80,6 +80,11 @@ function buildProfile(
     foodLog: [],
     mealPlan: {},
     weightHistory: [{ date: new Date().toISOString().split('T')[0], kg: weight }],
+    cheatMeals: [],
+    stepHistory: [],
+    workoutHistory: [],
+    waterHistory: [],
+    habitSettings: defaultHabitSettings(),
     customRecipes: [],
     preferences: { dietary_flags: [], dislikes: [] },
     ...(mode === 'pcos'

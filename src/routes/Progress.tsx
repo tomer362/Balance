@@ -1,6 +1,6 @@
-import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, Plus } from 'lucide-react';
+import { useEffect, useRef, useState } from 'react';
+import { useNavigate, useSearchParams } from 'react-router-dom';
+import { ArrowLeft, Check, Pencil, Plus, Trash2, X } from 'lucide-react';
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, Legend } from 'recharts';
 import { useAppStore, selectActiveProfile } from '../store/appStore';
 import { getCurrentPhase, getPhaseColor } from '../lib/cyclePhase';
@@ -83,15 +83,31 @@ function buildWeightChartData(history: WeightEntry[], language: 'en' | 'he') {
 export default function Progress() {
   const { copy, language } = useI18n();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const profile = useAppStore(selectActiveProfile);
   const logWeight = useAppStore((s) => s.logWeight);
+  const updateWeightEntry = useAppStore((s) => s.updateWeightEntry);
+  const deleteWeightEntry = useAppStore((s) => s.deleteWeightEntry);
   const updateProfile = useAppStore((s) => s.updateProfile);
+  const weightSectionRef = useRef<HTMLDivElement | null>(null);
 
   const [period, setPeriod] = useState<Period>('month');
   const [showWeightInput, setShowWeightInput] = useState(false);
   const [newWeight, setNewWeight] = useState('');
+  const [editingWeightDate, setEditingWeightDate] = useState<string | null>(null);
+  const [editWeightDate, setEditWeightDate] = useState('');
+  const [editWeightKg, setEditWeightKg] = useState('');
+  const [periodStartDate, setPeriodStartDate] = useState(() => new Date().toISOString().split('T')[0]);
   const [selectedSymptoms, setSelectedSymptoms] = useState<string[]>([]);
   const [todayMood, setTodayMood] = useState<'good' | 'ok' | 'low' | null>(null);
+
+  useEffect(() => {
+    if (searchParams.get('section') === 'weight') {
+      requestAnimationFrame(() => {
+        weightSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      });
+    }
+  }, [searchParams]);
 
   if (!profile) return null;
 
@@ -202,6 +218,53 @@ export default function Progress() {
     updateProfile(profile.id, { pcos: updated });
   }
 
+  function startEditingWeight(entry: WeightEntry) {
+    setEditingWeightDate(entry.date);
+    setEditWeightDate(entry.date);
+    setEditWeightKg(String(entry.kg));
+  }
+
+  function cancelEditingWeight() {
+    setEditingWeightDate(null);
+    setEditWeightDate('');
+    setEditWeightKg('');
+  }
+
+  function saveEditingWeight() {
+    if (!profile || !editingWeightDate || !editWeightDate || !editWeightKg) return;
+    const parsedWeight = parseFloat(editWeightKg);
+    if (!Number.isFinite(parsedWeight) || parsedWeight <= 0) return;
+
+    updateWeightEntry(profile.id, editingWeightDate, {
+      date: editWeightDate,
+      kg: Math.round(parsedWeight * 10) / 10,
+    });
+    cancelEditingWeight();
+  }
+
+  function removeWeightEntry(date: string) {
+    if (!profile) return;
+    deleteWeightEntry(profile.id, date);
+    if (editingWeightDate === date) cancelEditingWeight();
+  }
+
+  function logPeriodStart() {
+    if (!profile?.pcos || !periodStartDate) return;
+    updateProfile(profile.id, {
+      pcos: {
+        ...profile.pcos,
+        cycle: {
+          ...profile.pcos.cycle,
+          currentPhaseOverride: undefined,
+          history: [
+            { start: periodStartDate },
+            ...profile.pcos.cycle.history.filter((entry) => entry.start !== periodStartDate),
+          ].sort((a, b) => new Date(b.start).getTime() - new Date(a.start).getTime()),
+        },
+      },
+    });
+  }
+
   const cycleLength = profile.pcos?.cycle.avgCycleLength ?? 38;
   return (
     <div className="main-content min-h-screen bg-cream-bg">
@@ -237,7 +300,12 @@ export default function Progress() {
 
       <div className="px-4 space-y-4 pb-4">
         {/* Weight trend */}
-        <div className="bg-cream-card rounded-2xl border border-sand p-4">
+        <div
+          ref={weightSectionRef}
+          id="weight-history"
+          className="scroll-mt-4 bg-cream-card rounded-2xl border border-sand p-4"
+          data-testid="weight-history-section"
+        >
           <div className="flex items-center justify-between mb-3">
             <h2 className="text-sm font-semibold text-plum-dark">{copy.progress.weightTrend}</h2>
             <button
@@ -374,9 +442,81 @@ export default function Progress() {
                 <h3 className="text-xs font-semibold text-ink-40 uppercase tracking-wide mb-2">{copy.progress.recentEntries}</h3>
                 <div className="space-y-1.5">
                   {recentEntries.map((entry) => (
-                    <div key={entry.date} className="flex items-center justify-between rounded-xl border border-sand bg-cream-bg px-3 py-2">
-                      <span className="text-xs text-ink-60">{formatShortDate(new Date(entry.date), language)}</span>
-                      <span className="text-sm font-semibold text-plum-dark font-mono-num">{formatAmountWithUnit(entry.kg, 'kg', language, 1)}</span>
+                    <div
+                      key={entry.date}
+                      className="rounded-xl border border-sand bg-cream-bg px-3 py-2"
+                      data-testid="weight-history-entry"
+                    >
+                      {editingWeightDate === entry.date ? (
+                        <div className="space-y-2">
+                          <div className="grid grid-cols-[1fr_0.8fr] gap-2">
+                            <label className="text-[11px] font-medium text-ink-60">
+                              {copy.progress.entryDate}
+                              <input
+                                type="date"
+                                value={editWeightDate}
+                                onChange={(e) => setEditWeightDate(e.target.value)}
+                                className="mt-1 w-full rounded-lg border border-sand bg-white px-2 py-1.5 text-xs text-plum-dark"
+                                data-testid="weight-entry-date-input"
+                              />
+                            </label>
+                            <label className="text-[11px] font-medium text-ink-60">
+                              {copy.progress.entryWeight}
+                              <input
+                                type="number"
+                                inputMode="decimal"
+                                value={editWeightKg}
+                                onChange={(e) => setEditWeightKg(e.target.value)}
+                                className="mt-1 w-full rounded-lg border border-sand bg-white px-2 py-1.5 text-xs text-plum-dark font-mono-num"
+                                data-testid="weight-entry-weight-input"
+                              />
+                            </label>
+                          </div>
+                          <div className="flex gap-1.5">
+                            <button
+                              onClick={saveEditingWeight}
+                              className="flex flex-1 items-center justify-center gap-1 rounded-lg bg-sage-deep px-2 py-1.5 text-xs font-medium text-white"
+                              data-testid="weight-entry-save"
+                            >
+                              <Check size={13} />
+                              {copy.progress.saveEntry}
+                            </button>
+                            <button
+                              onClick={cancelEditingWeight}
+                              className="flex flex-1 items-center justify-center gap-1 rounded-lg bg-sand px-2 py-1.5 text-xs font-medium text-ink-60"
+                              data-testid="weight-entry-cancel"
+                            >
+                              <X size={13} />
+                              {copy.progress.cancelEdit}
+                            </button>
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="flex items-center justify-between gap-2">
+                          <div>
+                            <span className="block text-xs text-ink-60">{formatShortDate(new Date(entry.date), language)}</span>
+                            <span className="block text-sm font-semibold text-plum-dark font-mono-num">{formatAmountWithUnit(entry.kg, 'kg', language, 1)}</span>
+                          </div>
+                          <div className="flex items-center gap-1">
+                            <button
+                              onClick={() => startEditingWeight(entry)}
+                              className="rounded-lg bg-sand/70 p-2 text-ink-60 transition-colors hover:text-plum-dark"
+                              aria-label={copy.progress.editEntry}
+                              data-testid="weight-entry-edit"
+                            >
+                              <Pencil size={14} />
+                            </button>
+                            <button
+                              onClick={() => removeWeightEntry(entry.date)}
+                              className="rounded-lg bg-terracotta/10 p-2 text-terracotta transition-colors hover:bg-terracotta/20"
+                              aria-label={copy.progress.deleteEntry}
+                              data-testid="weight-entry-delete"
+                            >
+                              <Trash2 size={14} />
+                            </button>
+                          </div>
+                        </div>
+                      )}
                     </div>
                   ))}
                 </div>
@@ -449,9 +589,9 @@ export default function Progress() {
                       <span key={p} className="text-xs bg-moss/10 text-moss rounded-full px-2.5 py-1">✓ {p}</span>
                     ))}
                   </div>
-                  {brief.seedCycling && (
+                  {profile.pcos?.seedCyclingEnabled && brief.seedCycling && (
                     <p className="text-xs text-ink-60 bg-amber-warn/10 rounded-xl px-3 py-2">
-                      🌻 {brief.seedCycling}
+                      {copy.progress.seedCyclingReminder(brief.seedCycling)}
                     </p>
                   )}
                 </div>
@@ -459,24 +599,29 @@ export default function Progress() {
             })()}
 
             {/* Log period */}
-            <button
-              className="mt-3 w-full text-xs font-medium text-coral-accent border border-coral-accent/30 rounded-xl py-2.5"
-              onClick={() => {
-                if (!profile?.pcos) return;
-                const today = new Date().toISOString().split('T')[0];
-                updateProfile(profile.id, {
-                  pcos: {
-                    ...profile.pcos,
-                    cycle: {
-                      ...profile.pcos.cycle,
-                      history: [{ start: today }, ...profile.pcos.cycle.history],
-                    },
-                  },
-                });
-              }}
-            >
-               📝 {copy.progress.logPeriodStart}
-             </button>
+            <div className="mt-3 rounded-2xl border border-coral-accent/20 bg-coral-accent/5 p-3">
+              <label className="text-xs font-medium text-ink-60 block mb-1.5">{copy.progress.periodStartDate}</label>
+              <div className="flex gap-2">
+                <input
+                  type="date"
+                  value={periodStartDate}
+                  max={today}
+                  onChange={(e) => setPeriodStartDate(e.target.value)}
+                  className="min-w-0 flex-1 rounded-xl border border-sand bg-cream-bg px-3 py-2 text-sm text-plum-dark"
+                  data-testid="period-start-date-input"
+                />
+                <button
+                  className="px-3 py-2 text-xs font-medium text-white bg-coral-accent rounded-xl"
+                  onClick={logPeriodStart}
+                  data-testid="period-start-save"
+                >
+                  {copy.progress.logPeriodStart}
+                </button>
+              </div>
+              <p className="text-[11px] text-ink-40 mt-2">
+                {copy.progress.periodBackdateHelper}
+              </p>
+            </div>
            </div>
          )}
 

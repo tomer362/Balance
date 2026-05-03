@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { ArrowLeft, Search, Plus, Check, ChevronRight, X, Minus, Barcode, Layers } from 'lucide-react';
+import { ArrowLeft, Search, Plus, Check, ChevronRight, X, Minus, Layers } from 'lucide-react';
 import { useAppStore, selectActiveProfile } from '../store/appStore';
 import type { LoggedMeal, MealItem, NutritionData } from '../store/appStore';
 import { allMeals } from '../data/allMeals';
@@ -361,12 +361,6 @@ export default function Log() {
               </button>
             )}
           </div>
-          <button
-            onClick={() => navigate('/scan')}
-            className="tap-target flex items-center justify-center w-10 h-10 rounded-2xl bg-cream-card border border-sand"
-          >
-            <Barcode size={18} className="text-plum-dark" />
-          </button>
         </div>
 
         {/* Tab bar */}

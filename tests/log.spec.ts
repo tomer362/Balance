@@ -18,6 +18,11 @@ test.describe('Log page', () => {
     await expect(page.getByText(/chicken/i).first()).toBeVisible({ timeout: 3000 });
   });
 
+  test('searching cooked ingredients includes cooked chicken breast', async ({ page }) => {
+    await page.getByPlaceholder(/search/i).fill('cooked');
+    await expect(page.getByText('Chicken breast (cooked, roasted/grilled)')).toBeVisible({ timeout: 3000 });
+  });
+
   test('clicking ingredient + button opens serving picker', async ({ page }) => {
     await page.getByPlaceholder(/search/i).fill('egg');
     await page.getByTestId('ingredient-add-btn').first().click();
@@ -39,7 +44,6 @@ test.describe('Log page', () => {
   test('serving picker: confirm button closes sheet', async ({ page }) => {
     await page.getByPlaceholder(/search/i).fill('egg');
     await page.getByTestId('ingredient-add-btn').first().click();
-    // The scanner FAB floats above the nav; force the click to avoid intercept
     await page.getByTestId('serving-confirm').click({ force: true });
     await expect(page.getByTestId('serving-picker')).not.toBeVisible();
   });

@@ -77,6 +77,34 @@ export interface TrainingSchedule {
   typicalDurationMin?: number;
 }
 
+export interface CheatMeal {
+  id: string;
+  date: string;
+  name: string;
+  notes?: string;
+}
+
+export interface DatedNumberLog {
+  date: string;
+  value: number;
+}
+
+export interface WorkoutLog {
+  date: string;
+  completed: boolean;
+}
+
+export interface HabitSettings {
+  stepGoal: number;
+  workoutGoalPerWeek: number;
+  waterGoalMl: number;
+  reminders: {
+    steps: boolean;
+    workouts: boolean;
+    water: boolean;
+  };
+}
+
 export interface Profile {
   id: string;
   name: string;
@@ -94,6 +122,11 @@ export interface Profile {
   foodLog: LoggedMeal[];
   mealPlan: Record<string, { breakfast?: string; lunch?: string; dinner?: string; snacks?: string[] }>;
   weightHistory: Array<{ date: string; kg: number }>;
+  cheatMeals?: CheatMeal[];
+  stepHistory?: DatedNumberLog[];
+  workoutHistory?: WorkoutLog[];
+  waterHistory?: DatedNumberLog[];
+  habitSettings?: HabitSettings;
   customRecipes: MealItem[];
   preferences: { dietary_flags: string[]; dislikes: string[] };
   pcos?: {
@@ -142,6 +175,14 @@ export interface AppState {
   removeMeal: (profileId: string, mealId: string) => void;
   updateMeal: (profileId: string, mealId: string, updates: Partial<LoggedMeal>) => void;
   logWeight: (profileId: string, kg: number) => void;
+  updateWeightEntry: (profileId: string, originalDate: string, entry: { date: string; kg: number }) => void;
+  deleteWeightEntry: (profileId: string, date: string) => void;
+  logCheatMeal: (profileId: string, meal: CheatMeal) => void;
+  deleteCheatMeal: (profileId: string, mealId: string) => void;
+  logSteps: (profileId: string, date: string, steps: number) => void;
+  logWater: (profileId: string, date: string, ml: number) => void;
+  toggleWorkoutLog: (profileId: string, date: string) => void;
+  setHabitSettings: (profileId: string, updates: Partial<HabitSettings>) => void;
   updateTargets: (profileId: string, targets: Targets) => void;
   /** Called when the user finishes onboarding. Replaces demo profiles with the real one. */
   completeOnboarding: (profile: Profile) => void;
@@ -170,6 +211,36 @@ function upsertWeightHistoryEntry(
 ): Array<{ date: string; kg: number }> {
   const filtered = history.filter((entry) => entry.date !== next.date);
   return [...filtered, next].sort((a, b) => a.date.localeCompare(b.date));
+}
+
+export function defaultHabitSettings(): HabitSettings {
+  return {
+    stepGoal: 10000,
+    workoutGoalPerWeek: 3,
+    waterGoalMl: 2500,
+    reminders: { steps: true, workouts: true, water: true },
+  };
+}
+
+function upsertDatedNumberLog(
+  history: DatedNumberLog[] | undefined,
+  next: DatedNumberLog
+): DatedNumberLog[] {
+  const filtered = (history ?? []).filter((entry) => entry.date !== next.date);
+  return [...filtered, next].sort((a, b) => a.date.localeCompare(b.date));
+}
+
+function applyWeightHistory(profile: Profile, weightHistory: Array<{ date: string; kg: number }>): Profile {
+  const latestWeight = weightHistory[weightHistory.length - 1]?.kg ?? profile.demographics.weight_kg;
+  return {
+    ...profile,
+    demographics: {
+      ...profile.demographics,
+      weight_kg: latestWeight,
+      goal_weight_kg: deriveGoalWeight(profile, latestWeight),
+    },
+    weightHistory,
+  };
 }
 
 // Seed meals for PCOS demo profile
@@ -375,6 +446,27 @@ const defaultProfiles: Profile[] = [
       { date: daysAgo(2), kg: 82.0 },
       { date: todayStr(), kg: 82.0 },
     ],
+    cheatMeals: [],
+    stepHistory: [
+      { date: daysAgo(6), value: 8600 },
+      { date: daysAgo(5), value: 10400 },
+      { date: daysAgo(4), value: 9800 },
+      { date: daysAgo(3), value: 11200 },
+      { date: daysAgo(2), value: 7600 },
+      { date: daysAgo(1), value: 9300 },
+      { date: todayStr(), value: 0 },
+    ],
+    workoutHistory: [],
+    waterHistory: [
+      { date: daysAgo(6), value: 2100 },
+      { date: daysAgo(5), value: 2500 },
+      { date: daysAgo(4), value: 2350 },
+      { date: daysAgo(3), value: 2600 },
+      { date: daysAgo(2), value: 1800 },
+      { date: daysAgo(1), value: 2400 },
+      { date: todayStr(), value: 0 },
+    ],
+    habitSettings: defaultHabitSettings(),
     customRecipes: [],
     preferences: {
       dietary_flags: ['gluten-free-preferred'],
@@ -465,6 +557,27 @@ const defaultProfiles: Profile[] = [
       { date: daysAgo(2), kg: 78.0 },
       { date: todayStr(), kg: 78.0 },
     ],
+    cheatMeals: [],
+    stepHistory: [
+      { date: daysAgo(6), value: 7200 },
+      { date: daysAgo(5), value: 9800 },
+      { date: daysAgo(4), value: 11000 },
+      { date: daysAgo(3), value: 8300 },
+      { date: daysAgo(2), value: 10200 },
+      { date: daysAgo(1), value: 9400 },
+      { date: todayStr(), value: 0 },
+    ],
+    workoutHistory: [],
+    waterHistory: [
+      { date: daysAgo(6), value: 2300 },
+      { date: daysAgo(5), value: 2800 },
+      { date: daysAgo(4), value: 2500 },
+      { date: daysAgo(3), value: 2100 },
+      { date: daysAgo(2), value: 2700 },
+      { date: daysAgo(1), value: 2400 },
+      { date: todayStr(), value: 0 },
+    ],
+    habitSettings: defaultHabitSettings(),
     customRecipes: [],
     preferences: {
       dietary_flags: [],
@@ -597,13 +710,111 @@ export const useAppStore = create<AppState>()(
         set((state) => ({
           profiles: state.profiles.map((p) =>
             p.id === profileId
-              ? {
-                  ...p,
-                  demographics: { ...p.demographics, weight_kg: kg, goal_weight_kg: deriveGoalWeight(p, kg) },
-                  weightHistory: upsertWeightHistoryEntry(p.weightHistory, {
+              ? applyWeightHistory(
+                  p,
+                  upsertWeightHistoryEntry(p.weightHistory, {
                     date: new Date().toISOString().split('T')[0],
                     kg,
-                  }),
+                  })
+                )
+              : p
+          ),
+        })),
+
+      updateWeightEntry: (profileId, originalDate, entry) =>
+        set((state) => ({
+          profiles: state.profiles.map((p) =>
+            p.id === profileId
+              ? applyWeightHistory(
+                  p,
+                  upsertWeightHistoryEntry(
+                    p.weightHistory.filter((weightEntry) => weightEntry.date !== originalDate),
+                    entry
+                  )
+                )
+              : p
+          ),
+        })),
+
+      deleteWeightEntry: (profileId, date) =>
+        set((state) => ({
+          profiles: state.profiles.map((p) =>
+            p.id === profileId
+              ? applyWeightHistory(
+                  p,
+                  p.weightHistory.filter((entry) => entry.date !== date)
+                )
+              : p
+          ),
+        })),
+
+      logCheatMeal: (profileId, meal) =>
+        set((state) => ({
+          profiles: state.profiles.map((p) =>
+            p.id === profileId
+              ? { ...p, cheatMeals: [...(p.cheatMeals ?? []), meal].sort((a, b) => a.date.localeCompare(b.date)) }
+              : p
+          ),
+        })),
+
+      deleteCheatMeal: (profileId, mealId) =>
+        set((state) => ({
+          profiles: state.profiles.map((p) =>
+            p.id === profileId
+              ? { ...p, cheatMeals: (p.cheatMeals ?? []).filter((meal) => meal.id !== mealId) }
+              : p
+          ),
+        })),
+
+      logSteps: (profileId, date, steps) =>
+        set((state) => ({
+          profiles: state.profiles.map((p) =>
+            p.id === profileId
+              ? { ...p, stepHistory: upsertDatedNumberLog(p.stepHistory, { date, value: Math.max(0, Math.round(steps)) }) }
+              : p
+          ),
+        })),
+
+      logWater: (profileId, date, ml) =>
+        set((state) => ({
+          profiles: state.profiles.map((p) =>
+            p.id === profileId
+              ? { ...p, waterHistory: upsertDatedNumberLog(p.waterHistory, { date, value: Math.max(0, Math.round(ml)) }) }
+              : p
+          ),
+        })),
+
+      toggleWorkoutLog: (profileId, date) =>
+        set((state) => ({
+          profiles: state.profiles.map((p) => {
+            if (p.id !== profileId) return p;
+            const current = p.workoutHistory ?? [];
+            const existing = current.find((entry) => entry.date === date);
+            const next = existing
+              ? current.map((entry) =>
+                  entry.date === date ? { ...entry, completed: !entry.completed } : entry
+                )
+              : [...current, { date, completed: true }];
+            return { ...p, workoutHistory: next.sort((a, b) => a.date.localeCompare(b.date)) };
+          }),
+        })),
+
+      setHabitSettings: (profileId, updates) =>
+        set((state) => ({
+          profiles: state.profiles.map((p) =>
+            p.id === profileId
+              ? {
+                  ...p,
+                  habitSettings: {
+                    ...defaultHabitSettings(),
+                    ...(p.habitSettings ?? {}),
+                    ...updates,
+                    reminders: {
+                      ...defaultHabitSettings().reminders,
+                      ...(p.habitSettings?.reminders ?? {}),
+                      ...(updates.reminders ?? {}),
+                    },
+                  },
                 }
               : p
           ),

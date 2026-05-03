@@ -59,36 +59,6 @@ function parseNutrition(nutriments: OFFProduct['nutriments'], per100g = true): N
   });
 }
 
-export async function fetchByBarcode(barcode: string): Promise<{
-  name: string;
-  image?: string;
-  nutrition: NutritionData;
-  ingredients?: string[];
-} | null> {
-  try {
-    const res = await fetch(`${BASE_URL}/api/v0/product/${barcode}.json`);
-    if (!res.ok) return null;
-    const data = await res.json();
-    if (data.status !== 1 || !data.product) return null;
-
-    const product: OFFProduct = data.product;
-    const name = product.product_name ?? 'Unknown Product';
-    const image = product.image_url;
-    const nutrition = parseNutrition(product.nutriments);
-
-    const ingredients: string[] = [];
-    if (product.ingredients_text) {
-      ingredients.push(product.ingredients_text);
-    } else if (product.ingredients) {
-      product.ingredients.forEach((i) => ingredients.push(i.text));
-    }
-
-    return { name, image, nutrition, ingredients };
-  } catch {
-    return null;
-  }
-}
-
 export async function searchFood(query: string): Promise<
   Array<{ id: string; name: string; nutrition: NutritionData }>
 > {

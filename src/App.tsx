@@ -1,14 +1,15 @@
 import { useEffect } from 'react';
-import { BrowserRouter, Routes, Route, useLocation } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { AnimatePresence, motion } from 'framer-motion';
 import BottomNav from './components/BottomNav';
 import Dashboard from './routes/Dashboard';
-import Scanner from './routes/Scanner';
 import Log from './routes/Log';
 import Suggestions from './routes/Suggestions';
 import Groceries from './routes/Groceries';
 import Progress from './routes/Progress';
 import Profile from './routes/Profile';
+import CheatMeals from './routes/CheatMeals';
+import Wellness from './routes/Wellness';
 import Onboarding from './routes/Onboarding';
 import { useAppStore } from './store/appStore';
 
@@ -20,7 +21,6 @@ const PAGE_VARIANTS = {
 
 function AppLayout() {
   const location = useLocation();
-  const hideNav = location.pathname === '/scan';
   const settings = useAppStore((s) => s.appSettings);
 
   useEffect(() => {
@@ -45,16 +45,18 @@ function AppLayout() {
         >
           <Routes location={location}>
             <Route path="/" element={<Dashboard />} />
-            <Route path="/scan" element={<Scanner />} />
+            <Route path="/scan" element={<Navigate to="/log" replace />} />
             <Route path="/log" element={<Log />} />
             <Route path="/suggestions" element={<Suggestions />} />
             <Route path="/groceries" element={<Groceries />} />
             <Route path="/progress" element={<Progress />} />
+            <Route path="/cheat-meals" element={<CheatMeals />} />
+            <Route path="/wellness" element={<Wellness />} />
             <Route path="/profile" element={<Profile />} />
           </Routes>
         </motion.div>
       </AnimatePresence>
-      {!hideNav && <BottomNav />}
+      <BottomNav />
     </div>
   );
 }

@@ -1,7 +1,7 @@
 import { useState, type ReactNode } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Settings, ChevronRight, X, Scale, UtensilsCrossed, Carrot, LineChart } from 'lucide-react';
-import { useAppStore, selectActiveProfile, selectTodayMeals } from '../store/appStore';
+import { Settings, ChevronRight, X, Scale, UtensilsCrossed, Carrot, LineChart, Cookie, Footprints, Dumbbell, Droplets } from 'lucide-react';
+import { defaultHabitSettings, useAppStore, selectActiveProfile, selectTodayMeals } from '../store/appStore';
 import type { LoggedMeal, Phase } from '../store/appStore';
 import BalanceWheel from '../components/BalanceWheel';
 import MealCard from '../components/MealCard';
@@ -37,6 +37,15 @@ function getTodaySplit(profile: ReturnType<typeof selectActiveProfile>): string 
   return profile.bulk.trainingSchedule.split[idx] ?? null;
 }
 
+function startOfWeekKey(date: Date): string {
+  const copy = new Date(date);
+  const day = copy.getDay();
+  const diff = day === 0 ? -6 : 1 - day;
+  copy.setDate(copy.getDate() + diff);
+  copy.setHours(0, 0, 0, 0);
+  return copy.toISOString().split('T')[0];
+}
+
 export default function Dashboard() {
   const { copy, language } = useI18n();
   const navigate = useNavigate();
@@ -65,6 +74,22 @@ export default function Dashboard() {
   const isTraining = isTrainingDay(profile);
   const todaySplit = getTodaySplit(profile);
   const phaseInfo = profile.mode === 'pcos' ? getCurrentPhase(profile) : null;
+  const todayKey = new Date().toISOString().split('T')[0];
+  const weekKey = startOfWeekKey(new Date());
+  const habitSettings = {
+    ...defaultHabitSettings(),
+    ...(profile.habitSettings ?? {}),
+    reminders: {
+      ...defaultHabitSettings().reminders,
+      ...(profile.habitSettings?.reminders ?? {}),
+    },
+  };
+  const todaySteps = profile.stepHistory?.find((entry) => entry.date === todayKey)?.value ?? 0;
+  const todayWater = profile.waterHistory?.find((entry) => entry.date === todayKey)?.value ?? 0;
+  const workoutsThisWeek = (profile.workoutHistory ?? []).filter(
+    (entry) => entry.completed && startOfWeekKey(new Date(entry.date)) === weekKey
+  ).length;
+  const cheatMealsThisWeek = (profile.cheatMeals ?? []).filter((meal) => startOfWeekKey(new Date(meal.date)) === weekKey).length;
 
   return (
     <>
@@ -156,31 +181,62 @@ export default function Dashboard() {
 
       <div className="mx-5 mt-3 bg-cream-card rounded-2xl border border-sand/60 p-3 shadow-sm" data-testid="dashboard-quick-log">
         <p className="text-xs font-semibold text-ink-40 uppercase tracking-wide">{copy.dashboard.quickLogTitle}</p>
-        <p className="text-[11px] text-ink-40 mt-1">{copy.dashboard.quickLogSubtitle}</p>
         <div className="grid grid-cols-2 gap-2 mt-3">
           <ShortcutButton
             testId="dashboard-shortcut-meals"
             icon={<UtensilsCrossed size={15} />}
             label={copy.dashboard.shortcuts.meals}
+            detail={copy.dashboard.shortcutDetails.meals(todayMeals.length)}
             onClick={() => navigate('/log?tab=meals')}
           />
           <ShortcutButton
             testId="dashboard-shortcut-ingredients"
             icon={<Carrot size={15} />}
             label={copy.dashboard.shortcuts.ingredients}
+            detail={copy.dashboard.shortcutDetails.ingredients}
             onClick={() => navigate('/log?tab=ingredients')}
           />
           <ShortcutButton
             testId="dashboard-shortcut-weight-log"
             icon={<Scale size={15} />}
             label={copy.dashboard.shortcuts.logWeight}
+            detail={formatAmountWithUnit(profile.demographics.weight_kg, 'kg', language, 1)}
             onClick={() => setShowWeightSheet(true)}
           />
           <ShortcutButton
             testId="dashboard-shortcut-weight-history"
             icon={<LineChart size={15} />}
             label={copy.dashboard.shortcuts.weightHistory}
-            onClick={() => navigate('/progress')}
+            detail={copy.dashboard.shortcutDetails.weightHistory}
+            onClick={() => navigate('/progress?section=weight')}
+          />
+          <ShortcutButton
+            testId="dashboard-shortcut-cheat-meals"
+            icon={<Cookie size={15} />}
+            label={copy.dashboard.shortcuts.cheatMeals}
+            detail={copy.dashboard.shortcutDetails.cheatMeals(cheatMealsThisWeek)}
+            onClick={() => navigate('/cheat-meals')}
+          />
+          <ShortcutButton
+            testId="dashboard-shortcut-steps"
+            icon={<Footprints size={15} />}
+            label={copy.dashboard.shortcuts.steps}
+            detail={`${todaySteps.toLocaleString()}/${habitSettings.stepGoal.toLocaleString()}`}
+            onClick={() => navigate('/wellness?section=steps')}
+          />
+          <ShortcutButton
+            testId="dashboard-shortcut-workouts"
+            icon={<Dumbbell size={15} />}
+            label={copy.dashboard.shortcuts.workouts}
+            detail={`${workoutsThisWeek}/${habitSettings.workoutGoalPerWeek} ${copy.dashboard.shortcutDetails.workouts}`}
+            onClick={() => navigate('/wellness?section=workouts')}
+          />
+          <ShortcutButton
+            testId="dashboard-shortcut-water"
+            icon={<Droplets size={15} />}
+            label={copy.dashboard.shortcuts.water}
+            detail={`${todayWater}/${habitSettings.waterGoalMl} ml`}
+            onClick={() => navigate('/wellness?section=water')}
           />
         </div>
       </div>
@@ -378,11 +434,13 @@ function WeightUpdateSheet({
 function ShortcutButton({
   icon,
   label,
+  detail,
   onClick,
   testId,
 }: {
   icon: ReactNode;
   label: string;
+  detail?: string;
   onClick: () => void;
   testId: string;
 }) {
@@ -395,7 +453,10 @@ function ShortcutButton({
       <span className="w-7 h-7 rounded-lg bg-sage-primary/15 text-sage-deep flex items-center justify-center flex-shrink-0">
         {icon}
       </span>
-      <span className="text-xs font-medium text-plum-dark leading-tight">{label}</span>
+      <span className="min-w-0">
+        <span className="block text-xs font-semibold text-plum-dark leading-tight">{label}</span>
+        {detail && <span className="block text-[10px] text-ink-40 mt-0.5 truncate">{detail}</span>}
+      </span>
     </button>
   );
 }

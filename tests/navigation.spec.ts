@@ -9,6 +9,7 @@ test.describe('Navigation', () => {
 
   test('bottom nav is visible on dashboard', async ({ page }) => {
     await expect(page.getByTestId('bottom-nav')).toBeVisible();
+    await expect(page.getByTestId('nav-scan')).not.toBeVisible();
   });
 
   test('nav-log navigates to Log page', async ({ page }) => {
@@ -30,5 +31,10 @@ test.describe('Navigation', () => {
     await page.getByTestId('nav-log').click();
     await page.getByTestId('nav-home').click();
     await expect(page).toHaveURL('/');
+  });
+
+  test('legacy scan route redirects to log page while scanner is disabled', async ({ page }) => {
+    await page.goto('/scan');
+    await expect(page).toHaveURL(/\/log/);
   });
 });

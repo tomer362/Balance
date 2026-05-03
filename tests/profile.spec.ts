@@ -42,6 +42,7 @@ test.describe('Profile page', () => {
   test('phase-aware toggle is visible with 44px hit area', async ({ page }) => {
     const toggle = page.getByTestId('toggle-phase-aware');
     await expect(toggle).toBeVisible();
+    await expect(page.getByText(/meal scoring uses your current cycle phase/i)).toBeVisible();
     const box = await toggle.boundingBox();
     expect(box!.width).toBeGreaterThanOrEqual(44);
     expect(box!.height).toBeGreaterThanOrEqual(44);
@@ -205,6 +206,7 @@ test.describe('Profile page', () => {
   test('seed cycling toggle has unique testid and is interactive', async ({ page }) => {
     const toggle = page.getByTestId('toggle-seed-cycling');
     await expect(toggle).toBeVisible();
+    await expect(page.getByText(/flax \+ pumpkin before ovulation/i)).toBeVisible();
     const before = await toggle.getAttribute('aria-pressed');
     await toggle.click();
     const after = await toggle.getAttribute('aria-pressed');

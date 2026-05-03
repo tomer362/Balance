@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { useNavigate } from 'react-router-dom';
 import { ArrowLeft, ChevronRight, Plus, User, Trash2, X, Download, Upload, Info } from 'lucide-react';
-import { useAppStore, selectActiveProfile } from '../store/appStore';
+import { defaultHabitSettings, useAppStore, selectActiveProfile } from '../store/appStore';
 import type { Profile, Targets } from '../store/appStore';
 import { computePCOSTargets, computeBulkTargets, computeMaintainTargets, deriveGoalWeight } from '../lib/targetComputation';
 import { getCurrentPhase } from '../lib/cyclePhase';
@@ -148,6 +148,11 @@ function AddProfileModal({ onClose }: { onClose: () => void }) {
       foodLog: [],
       mealPlan: {},
       weightHistory: [{ date: new Date().toISOString().split('T')[0], kg: 70 }],
+      cheatMeals: [],
+      stepHistory: [],
+      workoutHistory: [],
+      waterHistory: [],
+      habitSettings: defaultHabitSettings(),
       customRecipes: [],
       preferences: { dietary_flags: [], dislikes: [] },
       ...(mode === 'pcos'
@@ -578,8 +583,11 @@ export default function Profile() {
               })}
             </div>
 
-            <div className="flex items-center justify-between py-2 border-t border-sand">
-              <span className="text-sm text-plum-dark flex-1">{profileCopy.phaseAware}</span>
+            <div className="flex items-start justify-between gap-3 py-3 border-t border-sand">
+              <div className="flex-1">
+                <span className="text-sm font-medium text-plum-dark">{profileCopy.phaseAware}</span>
+                <p className="text-xs text-ink-40 mt-1 leading-relaxed">{profileCopy.phaseAwareHelp}</p>
+              </div>
               <Toggle
                 checked={!profile.pcos.cycle.currentPhaseOverride}
                 onChange={() =>
@@ -598,8 +606,11 @@ export default function Profile() {
                 testId="toggle-phase-aware"
               />
             </div>
-            <div className="flex items-center justify-between py-2">
-              <span className="text-sm text-plum-dark flex-1">{profileCopy.seedCycling}</span>
+            <div className="flex items-start justify-between gap-3 py-3">
+              <div className="flex-1">
+                <span className="text-sm font-medium text-plum-dark">{profileCopy.seedCycling}</span>
+                <p className="text-xs text-ink-40 mt-1 leading-relaxed">{profileCopy.seedCyclingHelp}</p>
+              </div>
               <Toggle
                 checked={profile.pcos.seedCyclingEnabled}
                 onChange={() => updateProfile(profile.id, {

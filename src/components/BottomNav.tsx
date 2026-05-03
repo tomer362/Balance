@@ -1,5 +1,5 @@
 import { NavLink } from 'react-router-dom';
-import { Home, Search, Camera, ShoppingCart, User } from 'lucide-react';
+import { Home, Search, ShoppingCart, User } from 'lucide-react';
 import { useI18n } from '../lib/i18n';
 
 export default function BottomNav() {
@@ -17,56 +17,23 @@ export default function BottomNav() {
       style={{ paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}
       data-testid="bottom-nav"
     >
-      <div className="flex items-center h-16 relative">
-        {/* First two tabs */}
-        <div className="flex flex-1">
-          {tabs.slice(0, 2).map(({ to, icon: Icon, label, testId }) => (
-            <NavLink
-              key={to}
-              to={to}
-              end={to === '/'}
-              data-testid={testId}
-              className={({ isActive }) =>
-                `flex-1 flex flex-col items-center justify-center gap-0.5 py-2 transition-colors ${
-                  isActive ? 'text-sage-deep' : 'text-ink-40'
-                }`
-              }
-            >
-              <Icon size={22} strokeWidth={1.8} />
-              <span className="text-[10px] font-medium">{label}</span>
-            </NavLink>
-          ))}
-        </div>
-
-        {/* Center FAB: Scanner */}
-        <div className="flex-none flex items-center justify-center w-20">
+      <div className="grid grid-cols-4 h-16">
+        {tabs.map(({ to, icon: Icon, label, testId }) => (
           <NavLink
-            to="/scan"
-            data-testid="nav-scan"
-            className="w-14 h-14 bg-coral-accent rounded-full flex items-center justify-center shadow-lg -mt-5 transition-transform active:scale-95"
+            key={to}
+            to={to}
+            end={to === '/'}
+            data-testid={testId}
+            className={({ isActive }) =>
+              `flex flex-col items-center justify-center gap-0.5 py-2 transition-colors ${
+                isActive ? 'text-sage-deep' : 'text-ink-40'
+              }`
+            }
           >
-            <Camera size={26} className="text-white" strokeWidth={2} />
+            <Icon size={22} strokeWidth={1.8} />
+            <span className="text-[10px] font-medium">{label}</span>
           </NavLink>
-        </div>
-
-        {/* Last two tabs */}
-        <div className="flex flex-1">
-          {tabs.slice(2).map(({ to, icon: Icon, label, testId }) => (
-            <NavLink
-              key={to}
-              to={to}
-              data-testid={testId}
-              className={({ isActive }) =>
-                `flex-1 flex flex-col items-center justify-center gap-0.5 py-2 transition-colors ${
-                  isActive ? 'text-sage-deep' : 'text-ink-40'
-                }`
-              }
-            >
-              <Icon size={22} />
-              <span className="text-[10px] font-medium">{label}</span>
-            </NavLink>
-          ))}
-        </div>
+        ))}
       </div>
     </nav>
   );

@@ -80,6 +80,10 @@ test.describe('Dashboard EditMealSheet', () => {
     await expect(page.getByTestId('dashboard-shortcut-ingredients')).toBeVisible();
     await expect(page.getByTestId('dashboard-shortcut-weight-log')).toBeVisible();
     await expect(page.getByTestId('dashboard-shortcut-weight-history')).toBeVisible();
+    await expect(page.getByTestId('dashboard-shortcut-cheat-meals')).toBeVisible();
+    await expect(page.getByTestId('dashboard-shortcut-steps')).toBeVisible();
+    await expect(page.getByTestId('dashboard-shortcut-workouts')).toBeVisible();
+    await expect(page.getByTestId('dashboard-shortcut-water')).toBeVisible();
   });
 
   test('meals shortcut opens log page on meals tab', async ({ page }) => {
@@ -89,6 +93,16 @@ test.describe('Dashboard EditMealSheet', () => {
 
   test('weight history shortcut opens progress page', async ({ page }) => {
     await page.getByTestId('dashboard-shortcut-weight-history').click();
-    await expect(page).toHaveURL(/\/progress/);
+    await expect(page).toHaveURL(/\/progress\?section=weight/);
+    await expect(page.getByTestId('weight-history-section')).toBeVisible();
+  });
+
+  test('new logging shortcuts open cheat meals and wellness pages', async ({ page }) => {
+    await page.getByTestId('dashboard-shortcut-cheat-meals').click();
+    await expect(page).toHaveURL(/\/cheat-meals/);
+    await page.goto('/');
+    await page.getByTestId('dashboard-shortcut-water').click();
+    await expect(page).toHaveURL(/\/wellness\?section=water/);
+    await expect(page.getByTestId('water-section')).toBeVisible();
   });
 });

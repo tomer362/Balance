@@ -87,4 +87,37 @@ test.describe('Progress page', () => {
     await expect(page.getByTestId('progress-weight-input')).not.toBeVisible();
     await expect(page.getByTestId('weight-history-list')).toContainText('74.9 kg');
   });
+
+  test('can edit a weight entry and sync analysis with the graph source', async ({ page }) => {
+    await page.getByTestId('weight-entry-edit').first().click();
+    await page.getByTestId('weight-entry-weight-input').fill('74.4');
+    await page.getByTestId('weight-entry-save').click();
+
+    await expect(page.getByTestId('weight-history-list')).toContainText('74.4 kg');
+    await expect(page.getByTestId('weight-analysis-cards')).toContainText('74.4 kg');
+  });
+
+  test('can delete a weight entry and recalculate the current weight', async ({ page }) => {
+    await page.getByTestId('weight-entry-delete').first().click();
+
+    await expect(page.getByTestId('weight-history-list')).not.toContainText('75.4 kg');
+    await expect(page.getByTestId('weight-analysis-cards')).toContainText('75.6 kg');
+  });
+
+  test('can log period start for a previous day', async ({ page }) => {
+    const yesterday = await page.evaluate(() => {
+      const d = new Date();
+      d.setDate(d.getDate() - 1);
+      return d.toISOString().split('T')[0];
+    });
+
+    await page.getByTestId('period-start-date-input').fill(yesterday);
+    await page.getByTestId('period-start-save').click();
+
+    const storedStart = await page.evaluate(() => {
+      const stored = JSON.parse(localStorage.getItem('balance-storage') ?? '{}');
+      return stored.state.profiles[0].pcos.cycle.history[0].start;
+    });
+    expect(storedStart).toBe(yesterday);
+  });
 });
