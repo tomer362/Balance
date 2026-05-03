@@ -200,7 +200,7 @@ export default function Onboarding() {
 
           <div
             className="sticky bottom-0 bg-cream-bg pt-6"
-            style={{ paddingBottom: 'max(env(safe-area-inset-bottom, 0px), 16px)' }}
+            style={{ paddingBottom: 'max(env(safe-area-inset-bottom, 0px), 24px)' }}
           >
             <button
               onClick={() => setStep(2)}
@@ -293,16 +293,21 @@ export default function Onboarding() {
             </div>
           )}
 
-          <button
-            disabled={!selectedMode}
-            onClick={() => setStep(3)}
-            data-testid="onboarding-step2-continue"
-            className={`mt-4 mb-4 w-full py-4 rounded-2xl font-semibold flex items-center justify-center gap-2 transition-opacity ${
-              selectedMode ? 'bg-sage-deep text-white' : 'bg-sand text-ink-40 opacity-50'
-            }`}
+          <div
+            className="sticky bottom-0 bg-cream-bg pt-4 mt-auto"
+            style={{ paddingBottom: 'max(env(safe-area-inset-bottom, 0px), 24px)' }}
           >
-            {copy.onboarding.continue} <ArrowRight size={18} className={directionalIconClass(language)} />
-          </button>
+            <button
+              disabled={!selectedMode}
+              onClick={() => setStep(3)}
+              data-testid="onboarding-step2-continue"
+              className={`w-full py-4 rounded-2xl font-semibold flex items-center justify-center gap-2 transition-opacity ${
+                selectedMode ? 'bg-sage-deep text-white' : 'bg-sand text-ink-40 opacity-50'
+              }`}
+            >
+              {copy.onboarding.continue} <ArrowRight size={18} className={directionalIconClass(language)} />
+            </button>
+          </div>
         </div>
       )}
 
@@ -368,16 +373,21 @@ export default function Onboarding() {
 
            <p className="text-xs text-ink-40 mb-auto">{copy.onboarding.allOptional}</p>
 
-          <button
-            onClick={finish}
-            data-testid="onboarding-finish"
-            className="mb-4 w-full bg-sage-deep text-white py-4 rounded-2xl font-semibold flex items-center justify-center gap-2"
+          <div
+            className="sticky bottom-0 bg-cream-bg pt-4 mt-2"
+            style={{ paddingBottom: 'max(env(safe-area-inset-bottom, 0px), 20px)' }}
           >
-            {copy.onboarding.startUsing} <ArrowRight size={18} className={directionalIconClass(language)} />
-          </button>
-          <button onClick={finish} className="mb-2 text-center text-sm text-ink-40">
-            {copy.onboarding.skipForNow}
-          </button>
+            <button
+              onClick={finish}
+              data-testid="onboarding-finish"
+              className="w-full bg-sage-deep text-white py-4 rounded-2xl font-semibold flex items-center justify-center gap-2"
+            >
+              {copy.onboarding.startUsing} <ArrowRight size={18} className={directionalIconClass(language)} />
+            </button>
+            <button onClick={finish} className="mt-2 text-center text-sm text-ink-40 w-full">
+              {copy.onboarding.skipForNow}
+            </button>
+          </div>
         </div>
       )}
     </div>

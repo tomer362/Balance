@@ -1315,7 +1315,7 @@ function Toggle({ checked, onChange, testId = 'toggle' }: { checked: boolean; on
         className={`w-12 h-7 rounded-full transition-colors relative ${checked ? 'bg-sage-deep' : 'bg-sand'}`}
       >
         <span
-          className={`absolute top-1 w-5 h-5 rounded-full bg-white shadow-sm transition-transform ${
+          className={`absolute left-0 top-1 w-5 h-5 rounded-full bg-white shadow-sm transition-transform ${
             checked ? 'translate-x-6' : 'translate-x-1'
           }`}
         />
