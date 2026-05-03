@@ -1,6 +1,6 @@
 import { useState, type ReactNode } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Settings, ChevronRight, X, Scale, UtensilsCrossed, Carrot, LineChart, Cookie, Footprints, Dumbbell, Droplets } from 'lucide-react';
+import { Settings, ChevronRight, X, Scale, UtensilsCrossed, Carrot, LineChart, Cookie, Footprints, Dumbbell, Droplets, Search, Check } from 'lucide-react';
 import { defaultHabitSettings, useAppStore, selectActiveProfile, selectTodayMeals } from '../store/appStore';
 import type { LoggedMeal, Phase } from '../store/appStore';
 import BalanceWheel from '../components/BalanceWheel';
@@ -52,10 +52,13 @@ export default function Dashboard() {
   const profile = useAppStore(selectActiveProfile);
   const todayMeals = useAppStore(selectTodayMeals);
   const removeMeal = useAppStore((s) => s.removeMeal);
+  const logSteps = useAppStore((s) => s.logSteps);
+  const toggleWorkoutLog = useAppStore((s) => s.toggleWorkoutLog);
 
   const [editingMeal, setEditingMeal] = useState<LoggedMeal | null>(null);
   const [showWeightSheet, setShowWeightSheet] = useState(false);
   const [nutritionMeal, setNutritionMeal] = useState<LoggedMeal | null>(null);
+  const [globalSearch, setGlobalSearch] = useState('');
 
   if (!profile) return null;
 
@@ -85,11 +88,28 @@ export default function Dashboard() {
     },
   };
   const todaySteps = profile.stepHistory?.find((entry) => entry.date === todayKey)?.value ?? 0;
+  const stepsDoneToday = todaySteps >= habitSettings.stepGoal;
   const todayWater = profile.waterHistory?.find((entry) => entry.date === todayKey)?.value ?? 0;
   const workoutsThisWeek = (profile.workoutHistory ?? []).filter(
     (entry) => entry.completed && startOfWeekKey(new Date(entry.date)) === weekKey
   ).length;
+  const workoutDoneToday = (profile.workoutHistory ?? []).some((entry) => entry.date === todayKey && entry.completed);
   const cheatMealsThisWeek = (profile.cheatMeals ?? []).filter((meal) => startOfWeekKey(new Date(meal.date)) === weekKey).length;
+  const searchItems = [
+    { label: copy.dashboard.search.items.meals, detail: copy.dashboard.shortcutDetails.meals(todayMeals.length), path: '/log?tab=meals' },
+    { label: copy.dashboard.search.items.ingredients, detail: copy.dashboard.shortcutDetails.ingredients, path: '/log?tab=ingredients' },
+    { label: copy.dashboard.search.items.weight, detail: copy.dashboard.shortcutDetails.weightHistory, path: '/progress?section=weight' },
+    { label: copy.dashboard.search.items.period, detail: copy.progress.cycleTracking, path: '/progress?section=cycle' },
+    { label: copy.dashboard.search.items.symptoms, detail: copy.progress.symptomCheckin, path: '/progress?section=symptoms' },
+    { label: copy.dashboard.search.items.cheatMeals, detail: copy.cheatMeals.title, path: '/cheat-meals' },
+    { label: copy.dashboard.search.items.steps, detail: copy.wellness.steps.title, path: '/wellness?section=steps' },
+    { label: copy.dashboard.search.items.workouts, detail: copy.wellness.workouts.title, path: '/wellness?section=workouts' },
+    { label: copy.dashboard.search.items.water, detail: copy.wellness.water.title, path: '/wellness?section=water' },
+  ];
+  const normalizedSearch = globalSearch.trim().toLowerCase();
+  const searchResults = normalizedSearch
+    ? searchItems.filter((item) => `${item.label} ${item.detail}`.toLowerCase().includes(normalizedSearch)).slice(0, 5)
+    : [];
 
   return (
     <>
@@ -179,6 +199,36 @@ export default function Dashboard() {
         <ChevronRight size={16} className={`text-ink-40 ${directionalIconClass(language)}`} />
       </button>
 
+      <div className="mx-5 mt-3 rounded-2xl border border-sand/60 bg-cream-card p-3 shadow-sm" data-testid="dashboard-global-search">
+        <label className="flex items-center gap-2 rounded-xl border border-sand bg-cream-bg px-3 py-2">
+          <Search size={15} className="text-ink-40" />
+          <input
+            value={globalSearch}
+            onChange={(e) => setGlobalSearch(e.target.value)}
+            placeholder={copy.dashboard.search.placeholder}
+            className="min-w-0 flex-1 bg-transparent text-sm text-plum-dark outline-none placeholder:text-ink-40"
+            data-testid="dashboard-global-search-input"
+          />
+        </label>
+        {searchResults.length > 0 && (
+          <div className="mt-2 space-y-1" data-testid="dashboard-global-search-results">
+            {searchResults.map((item) => (
+              <button
+                key={item.path}
+                onClick={() => navigate(item.path)}
+                className="flex w-full items-center justify-between gap-3 rounded-xl bg-sand/35 px-3 py-2 text-left"
+              >
+                <span>
+                  <span className="block text-xs font-semibold text-plum-dark">{item.label}</span>
+                  <span className="block text-[10px] text-ink-40">{item.detail}</span>
+                </span>
+                <ChevronRight size={14} className={`text-ink-40 ${directionalIconClass(language)}`} />
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
+
       <div className="mx-5 mt-3 bg-cream-card rounded-2xl border border-sand/60 p-3 shadow-sm" data-testid="dashboard-quick-log">
         <p className="text-xs font-semibold text-ink-40 uppercase tracking-wide">{copy.dashboard.quickLogTitle}</p>
         <div className="grid grid-cols-2 gap-2 mt-3">
@@ -217,19 +267,27 @@ export default function Dashboard() {
             detail={copy.dashboard.shortcutDetails.cheatMeals(cheatMealsThisWeek)}
             onClick={() => navigate('/cheat-meals')}
           />
-          <ShortcutButton
+          <FastHabitShortcutButton
             testId="dashboard-shortcut-steps"
+            toggleTestId="dashboard-steps-toggle"
+            historyTestId="dashboard-steps-open-history"
             icon={<Footprints size={15} />}
             label={copy.dashboard.shortcuts.steps}
-            detail={`${todaySteps.toLocaleString()}/${habitSettings.stepGoal.toLocaleString()}`}
-            onClick={() => navigate('/wellness?section=steps')}
+            detail={stepsDoneToday ? copy.dashboard.stepDone : copy.dashboard.stepTapToComplete}
+            done={stepsDoneToday}
+            onToggle={() => logSteps(profile.id, todayKey, stepsDoneToday ? 0 : habitSettings.stepGoal)}
+            onOpen={() => navigate('/wellness?section=steps')}
           />
-          <ShortcutButton
+          <FastHabitShortcutButton
             testId="dashboard-shortcut-workouts"
+            toggleTestId="dashboard-workout-toggle"
+            historyTestId="dashboard-workout-open-history"
             icon={<Dumbbell size={15} />}
             label={copy.dashboard.shortcuts.workouts}
-            detail={`${workoutsThisWeek}/${habitSettings.workoutGoalPerWeek} ${copy.dashboard.shortcutDetails.workouts}`}
-            onClick={() => navigate('/wellness?section=workouts')}
+            detail={workoutDoneToday ? copy.dashboard.workoutDone : copy.dashboard.workoutTapToComplete(workoutsThisWeek, habitSettings.workoutGoalPerWeek)}
+            done={workoutDoneToday}
+            onToggle={() => toggleWorkoutLog(profile.id, todayKey)}
+            onOpen={() => navigate('/wellness?section=workouts')}
           />
           <ShortcutButton
             testId="dashboard-shortcut-water"
@@ -458,6 +516,52 @@ function ShortcutButton({
         {detail && <span className="block text-[10px] text-ink-40 mt-0.5 truncate">{detail}</span>}
       </span>
     </button>
+  );
+}
+
+function FastHabitShortcutButton({
+  icon,
+  label,
+  detail,
+  done,
+  onToggle,
+  onOpen,
+  testId,
+  toggleTestId,
+  historyTestId,
+}: {
+  icon: ReactNode;
+  label: string;
+  detail: string;
+  done: boolean;
+  onToggle: () => void;
+  onOpen: () => void;
+  testId: string;
+  toggleTestId: string;
+  historyTestId: string;
+}) {
+  return (
+    <div
+      data-testid={testId}
+      className={`rounded-xl border px-3 py-2.5 flex items-center gap-2.5 transition-colors ${
+        done ? 'border-sage-primary bg-sage-primary/10' : 'border-sand bg-cream-bg'
+      }`}
+    >
+      <button
+        onClick={onToggle}
+        className={`flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-lg ${
+          done ? 'bg-sage-deep text-white' : 'bg-sage-primary/15 text-sage-deep'
+        }`}
+        aria-label={detail}
+        data-testid={toggleTestId}
+      >
+        {done ? <Check size={15} /> : icon}
+      </button>
+      <button onClick={onOpen} className="min-w-0 flex-1 text-left" data-testid={historyTestId}>
+        <span className="block text-xs font-semibold text-plum-dark leading-tight">{label}</span>
+        <span className="block truncate text-[10px] text-ink-40 mt-0.5">{detail}</span>
+      </button>
+    </div>
   );
 }
 

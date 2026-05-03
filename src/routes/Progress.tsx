@@ -90,21 +90,34 @@ export default function Progress() {
   const deleteWeightEntry = useAppStore((s) => s.deleteWeightEntry);
   const updateProfile = useAppStore((s) => s.updateProfile);
   const weightSectionRef = useRef<HTMLDivElement | null>(null);
+  const cycleSectionRef = useRef<HTMLDivElement | null>(null);
+  const symptomSectionRef = useRef<HTMLDivElement | null>(null);
 
   const [period, setPeriod] = useState<Period>('month');
+  const [weightSearch, setWeightSearch] = useState('');
   const [showWeightInput, setShowWeightInput] = useState(false);
   const [newWeight, setNewWeight] = useState('');
   const [editingWeightDate, setEditingWeightDate] = useState<string | null>(null);
   const [editWeightDate, setEditWeightDate] = useState('');
   const [editWeightKg, setEditWeightKg] = useState('');
   const [periodStartDate, setPeriodStartDate] = useState(() => new Date().toISOString().split('T')[0]);
+  const [periodSavedMessage, setPeriodSavedMessage] = useState('');
   const [selectedSymptoms, setSelectedSymptoms] = useState<string[]>([]);
   const [todayMood, setTodayMood] = useState<'good' | 'ok' | 'low' | null>(null);
+  const [symptomSavedMessage, setSymptomSavedMessage] = useState('');
 
   useEffect(() => {
-    if (searchParams.get('section') === 'weight') {
+    const section = searchParams.get('section');
+    const target = section === 'weight'
+      ? weightSectionRef
+      : section === 'cycle'
+      ? cycleSectionRef
+      : section === 'symptoms'
+      ? symptomSectionRef
+      : null;
+    if (target) {
       requestAnimationFrame(() => {
-        weightSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        target.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
       });
     }
   }, [searchParams]);
@@ -132,6 +145,12 @@ export default function Progress() {
     .sort((a, b) => a.date.localeCompare(b.date));
 
   const weightChartData = buildWeightChartData(filteredWeightHistory, language);
+  const normalizedWeightSearch = weightSearch.trim().toLowerCase();
+  const visibleWeightChartData = normalizedWeightSearch
+    ? weightChartData.filter((entry) =>
+        `${entry.date} ${entry.label} ${entry.weight} ${entry.weeklyAverage} ${entry.movingAverage}`.toLowerCase().includes(normalizedWeightSearch)
+      )
+    : weightChartData;
   const latestWeight = filteredWeightHistory[filteredWeightHistory.length - 1]?.kg ?? profile.demographics.weight_kg;
   const firstWeight = filteredWeightHistory[0]?.kg ?? latestWeight;
   const weightChange = filteredWeightHistory.length >= 2
@@ -172,7 +191,38 @@ export default function Progress() {
       )
     : 0;
   const latestWeightDate = filteredWeightHistory[filteredWeightHistory.length - 1]?.date ?? today;
-  const recentEntries = [...filteredWeightHistory].reverse().slice(0, 6);
+  const recentEntries = [...filteredWeightHistory]
+    .reverse()
+    .filter((entry) =>
+      normalizedWeightSearch
+        ? `${entry.date} ${formatShortDate(new Date(entry.date), language)} ${entry.kg}`.toLowerCase().includes(normalizedWeightSearch)
+        : true
+    )
+    .slice(0, 8);
+  const periodHistory = [...(profile.pcos?.cycle.history ?? [])].sort((a, b) => b.start.localeCompare(a.start));
+  const cycleLengthData = [...periodHistory]
+    .sort((a, b) => a.start.localeCompare(b.start))
+    .map((entry, index, entries) => {
+      if (index === 0) return null;
+      const previous = new Date(entries[index - 1].start);
+      const current = new Date(entry.start);
+      const days = Math.max(1, Math.round((current.getTime() - previous.getTime()) / 86400000));
+      return {
+        label: formatShortDate(current, language),
+        days,
+      };
+    })
+    .filter(Boolean) as Array<{ label: string; days: number }>;
+  const symptomTrendData = [...(profile.pcos?.symptomLog ?? [])]
+    .sort((a, b) => a.date.localeCompare(b.date))
+    .slice(-14)
+    .map((entry) => ({
+      date: entry.date,
+      label: formatShortDate(new Date(entry.date), language),
+      count: entry.symptoms.length,
+      moodScore: entry.mood === 'good' ? 3 : entry.mood === 'ok' ? 2 : entry.mood === 'low' ? 1 : 0,
+    }));
+  const latestSymptomLog = [...(profile.pcos?.symptomLog ?? [])].sort((a, b) => b.date.localeCompare(a.date))[0];
 
   // Macro adherence
   const targets = profile.targets;
@@ -216,6 +266,7 @@ export default function Progress() {
       ],
     };
     updateProfile(profile.id, { pcos: updated });
+    setSymptomSavedMessage(copy.progress.symptomSaved(todayMood ?? 'ok', selectedSymptoms.length));
   }
 
   function startEditingWeight(entry: WeightEntry) {
@@ -263,6 +314,7 @@ export default function Progress() {
         },
       },
     });
+    setPeriodSavedMessage(copy.progress.periodSaved(formatShortDate(new Date(periodStartDate), language)));
   }
 
   const cycleLength = profile.pcos?.cycle.avgCycleLength ?? 38;
@@ -349,7 +401,15 @@ export default function Progress() {
             </div>
           )}
 
-          {weightChartData.length > 1 ? (
+          <input
+            value={weightSearch}
+            onChange={(e) => setWeightSearch(e.target.value)}
+            placeholder={copy.progress.searchWeightHistory}
+            className="mb-3 w-full rounded-xl border border-sand bg-cream-bg px-3 py-2 text-sm text-plum-dark outline-none placeholder:text-ink-40"
+            data-testid="weight-history-search"
+          />
+
+          {visibleWeightChartData.length > 1 ? (
             <>
               <div className="grid grid-cols-2 gap-2 mb-4" data-testid="weight-analysis-cards">
                 <MetricPill
@@ -375,7 +435,7 @@ export default function Progress() {
               </div>
 
               <ResponsiveContainer width="100%" height={190}>
-                <LineChart data={weightChartData}>
+                <LineChart data={visibleWeightChartData}>
                   <CartesianGrid strokeDasharray="3 3" stroke="#EFE4D2" />
                   <XAxis dataKey="label" tick={{ fontSize: 10, fill: '#8F7F90' }} tickLine={false} />
                   <YAxis
@@ -529,7 +589,7 @@ export default function Progress() {
 
         {/* PCOS: Cycle section */}
         {profile.mode === 'pcos' && phaseInfo && (
-          <div className="bg-cream-card rounded-2xl border border-sand p-4">
+          <div ref={cycleSectionRef} className="scroll-mt-4 bg-cream-card rounded-2xl border border-sand p-4" data-testid="cycle-history-section">
             <h2 className="text-sm font-semibold text-plum-dark mb-4">{copy.progress.cycleTracking}</h2>
 
             {/* Cycle ring */}
@@ -621,6 +681,37 @@ export default function Progress() {
               <p className="text-[11px] text-ink-40 mt-2">
                 {copy.progress.periodBackdateHelper}
               </p>
+              {periodSavedMessage && (
+                <p className="mt-2 rounded-xl bg-sage-primary/15 px-3 py-2 text-xs font-medium text-sage-deep" data-testid="period-start-saved">
+                  {periodSavedMessage}
+                </p>
+              )}
+              {periodHistory.length > 0 && (
+                <div className="mt-3 rounded-2xl bg-cream-bg p-3" data-testid="period-history-list">
+                  <h3 className="text-xs font-semibold uppercase tracking-wide text-ink-40">{copy.progress.recentPeriodStarts}</h3>
+                  <div className="mt-2 flex flex-wrap gap-1.5">
+                    {periodHistory.slice(0, 6).map((entry) => (
+                      <span key={entry.start} className="rounded-full bg-coral-accent/10 px-2.5 py-1 text-xs font-medium text-coral-accent">
+                        {formatShortDate(new Date(entry.start), language)}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              )}
+              {cycleLengthData.length > 0 && (
+                <div className="mt-3 h-36 rounded-2xl bg-cream-bg p-2" data-testid="cycle-length-chart">
+                  <p className="px-1 text-xs font-semibold uppercase tracking-wide text-ink-40">{copy.progress.cycleLengthTrend}</p>
+                  <ResponsiveContainer width="100%" height="82%">
+                    <LineChart data={cycleLengthData}>
+                      <CartesianGrid strokeDasharray="3 3" stroke="#EFE4D2" />
+                      <XAxis dataKey="label" tick={{ fontSize: 10, fill: '#8F7F90' }} tickLine={false} />
+                      <YAxis tick={{ fontSize: 10, fill: '#8F7F90' }} tickLine={false} width={28} />
+                      <Tooltip contentStyle={{ borderRadius: 12, border: '1px solid #EFE4D2', fontSize: 12 }} formatter={(value: number) => [`${value}d`, copy.progress.cycleLength]} />
+                      <Line type="monotone" dataKey="days" stroke="#E8876A" strokeWidth={2.5} dot={{ r: 3, fill: '#E8876A' }} />
+                    </LineChart>
+                  </ResponsiveContainer>
+                </div>
+              )}
             </div>
            </div>
          )}
@@ -710,8 +801,16 @@ export default function Progress() {
 
         {/* PCOS: Symptom tracker */}
         {profile.mode === 'pcos' && (
-          <div className="bg-cream-card rounded-2xl border border-sand p-4">
+          <div ref={symptomSectionRef} className="scroll-mt-4 bg-cream-card rounded-2xl border border-sand p-4" data-testid="symptom-history-section">
              <h2 className="text-sm font-semibold text-plum-dark mb-3">{copy.progress.symptomCheckin}</h2>
+             {latestSymptomLog && (
+               <p className="mb-3 rounded-2xl bg-sage-primary/10 px-3 py-2 text-xs text-sage-deep" data-testid="latest-symptom-checkin">
+                 {copy.progress.lastSymptomCheckin(
+                   formatShortDate(new Date(latestSymptomLog.date), language),
+                   latestSymptomLog.symptoms.length
+                 )}
+               </p>
+             )}
 
              <p className="text-xs text-ink-60 mb-2">{copy.progress.howFeeling}</p>
             <div className="flex gap-2 mb-3">
@@ -751,10 +850,47 @@ export default function Progress() {
               <button
                 onClick={handleLogSymptom}
                 className="mt-3 w-full bg-sage-deep text-white rounded-xl py-2.5 text-sm font-semibold"
+                data-testid="symptom-checkin-save"
               >
                  {copy.progress.saveCheckin}
                </button>
              )}
+            {symptomSavedMessage && (
+              <p className="mt-2 rounded-xl bg-sage-primary/15 px-3 py-2 text-xs font-medium text-sage-deep" data-testid="symptom-checkin-saved">
+                {symptomSavedMessage}
+              </p>
+            )}
+            {symptomTrendData.length > 0 && (
+              <div className="mt-4 rounded-2xl bg-cream-bg p-3" data-testid="symptom-trend-chart">
+                <h3 className="text-xs font-semibold uppercase tracking-wide text-ink-40">{copy.progress.symptomTrend}</h3>
+                <div className="mt-2 h-36">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <LineChart data={symptomTrendData}>
+                      <CartesianGrid strokeDasharray="3 3" stroke="#EFE4D2" />
+                      <XAxis dataKey="label" tick={{ fontSize: 10, fill: '#8F7F90' }} tickLine={false} />
+                      <YAxis tick={{ fontSize: 10, fill: '#8F7F90' }} tickLine={false} width={28} />
+                      <Tooltip
+                        contentStyle={{ borderRadius: 12, border: '1px solid #EFE4D2', fontSize: 12 }}
+                        formatter={(value: number, key: string) => [value, key === 'moodScore' ? copy.progress.moodScore : copy.progress.symptomCount]}
+                      />
+                      <Line type="monotone" dataKey="count" stroke="#C85A44" strokeWidth={2.5} dot={{ r: 3, fill: '#C85A44' }} name={copy.progress.symptomCount} />
+                      <Line type="monotone" dataKey="moodScore" stroke="#5C7A58" strokeWidth={2} dot={false} strokeDasharray="4 4" name={copy.progress.moodScore} />
+                    </LineChart>
+                  </ResponsiveContainer>
+                </div>
+                <div className="mt-3 space-y-1.5" data-testid="symptom-history-list">
+                  {[...(profile.pcos?.symptomLog ?? [])]
+                    .sort((a, b) => b.date.localeCompare(a.date))
+                    .slice(0, 5)
+                    .map((entry) => (
+                      <div key={entry.date} className="flex items-center justify-between rounded-xl bg-sand/35 px-3 py-2 text-xs">
+                        <span className="font-medium text-plum-dark">{formatShortDate(new Date(entry.date), language)}</span>
+                        <span className="text-ink-60">{entry.symptoms.length ? entry.symptoms.join(', ') : copy.progress.noSymptoms}</span>
+                      </div>
+                    ))}
+                </div>
+              </div>
+            )}
           </div>
         )}
       </div>

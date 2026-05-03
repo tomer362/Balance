@@ -114,10 +114,23 @@ test.describe('Progress page', () => {
     await page.getByTestId('period-start-date-input').fill(yesterday);
     await page.getByTestId('period-start-save').click();
 
+    await expect(page.getByTestId('period-start-saved')).toContainText('Saved');
+    await expect(page.getByTestId('period-history-list')).toBeVisible();
+
     const storedStart = await page.evaluate(() => {
       const stored = JSON.parse(localStorage.getItem('balance-storage') ?? '{}');
       return stored.state.profiles[0].pcos.cycle.history[0].start;
     });
     expect(storedStart).toBe(yesterday);
+  });
+
+  test('symptom check-in gives immediate saved feedback and history trend', async ({ page }) => {
+    await page.getByRole('button', { name: /Good/i }).click();
+    await page.getByRole('button', { name: /Fatigue/i }).click();
+    await page.getByTestId('symptom-checkin-save').click();
+
+    await expect(page.getByTestId('symptom-checkin-saved')).toContainText('Saved');
+    await expect(page.getByTestId('latest-symptom-checkin')).toContainText('1 symptom');
+    await expect(page.getByTestId('symptom-trend-chart')).toBeVisible();
   });
 });

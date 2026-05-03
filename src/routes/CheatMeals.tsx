@@ -142,24 +142,24 @@ export default function CheatMeals() {
 
         <div className="rounded-3xl border border-sand bg-cream-card p-4 space-y-3" data-testid="cheat-meal-form">
           <h2 className="text-sm font-semibold text-plum-dark">{copy.cheatMeals.logTitle}</h2>
-          <div className="grid grid-cols-[0.9fr_1.1fr] gap-2">
-            <label className="text-xs text-ink-60">
+          <div className="grid grid-cols-1 gap-2 sm:grid-cols-[0.9fr_1.1fr] sm:items-end">
+            <label className="flex flex-col text-xs text-ink-60">
               {copy.cheatMeals.date}
               <input
                 type="date"
                 value={date}
                 onChange={(e) => setDate(e.target.value)}
-                className="mt-1 w-full rounded-xl border border-sand bg-cream-bg px-3 py-2 text-sm text-plum-dark"
+                className="mt-1 h-10 w-full rounded-xl border border-sand bg-cream-bg px-3 py-2 text-sm text-plum-dark"
                 data-testid="cheat-date-input"
               />
             </label>
-            <label className="text-xs text-ink-60">
+            <label className="flex flex-col text-xs text-ink-60">
               {copy.cheatMeals.name}
               <input
                 value={name}
                 onChange={(e) => setName(e.target.value)}
                 placeholder={copy.cheatMeals.namePlaceholder}
-                className="mt-1 w-full rounded-xl border border-sand bg-cream-bg px-3 py-2 text-sm text-plum-dark"
+                className="mt-1 h-10 w-full rounded-xl border border-sand bg-cream-bg px-3 py-2 text-sm text-plum-dark"
                 data-testid="cheat-name-input"
               />
             </label>

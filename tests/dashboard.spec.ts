@@ -105,4 +105,29 @@ test.describe('Dashboard EditMealSheet', () => {
     await expect(page).toHaveURL(/\/wellness\?section=water/);
     await expect(page.getByTestId('water-section')).toBeVisible();
   });
+
+  test('steps shortcut can be completed in one tap and text opens history', async ({ page }) => {
+    await page.getByTestId('dashboard-steps-toggle').click();
+    await expect(page.getByTestId('dashboard-shortcut-steps')).toContainText('10k done today');
+
+    await page.getByTestId('dashboard-steps-open-history').click();
+    await expect(page).toHaveURL(/\/wellness\?section=steps/);
+    await expect(page.getByTestId('steps-section')).toBeVisible();
+  });
+
+  test('workout shortcut can be completed in one tap and text opens history', async ({ page }) => {
+    await page.getByTestId('dashboard-workout-toggle').click();
+    await expect(page.getByTestId('dashboard-shortcut-workouts')).toContainText('Workout logged today');
+
+    await page.getByTestId('dashboard-workout-open-history').click();
+    await expect(page).toHaveURL(/\/wellness\?section=workouts/);
+    await expect(page.getByTestId('workouts-section')).toBeVisible();
+  });
+
+  test('global search navigates to matching history sections', async ({ page }) => {
+    await page.getByTestId('dashboard-global-search-input').fill('steps history');
+    await expect(page.getByTestId('dashboard-global-search-results')).toContainText('Steps history');
+    await page.getByRole('button', { name: /Steps history/i }).click();
+    await expect(page).toHaveURL(/\/wellness\?section=steps/);
+  });
 });

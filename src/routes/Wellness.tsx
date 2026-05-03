@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { ArrowLeft, Check, Droplets, Dumbbell, Footprints } from 'lucide-react';
-import { CartesianGrid, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
+import { Bar, BarChart, CartesianGrid, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 import { defaultHabitSettings, selectActiveProfile, useAppStore } from '../store/appStore';
 import type { DatedNumberLog } from '../store/appStore';
 import { directionalIconClass, formatAmountWithUnit, formatDateValue, useI18n } from '../lib/i18n';
@@ -42,12 +42,13 @@ function logValue(history: DatedNumberLog[] | undefined, date: string): number {
   return history?.find((entry) => entry.date === date)?.value ?? 0;
 }
 
-function chartData(history: DatedNumberLog[] | undefined, period: Period, language: 'en' | 'he') {
+function chartData(history: DatedNumberLog[] | undefined, period: Period, language: 'en' | 'he', search = '') {
   const days = periodDays(period);
   const start = addDays(new Date(), -(days - 1));
   const values = new Map((history ?? []).map((entry) => [entry.date, entry.value]));
+  const normalizedSearch = search.trim().toLowerCase();
 
-  return Array.from({ length: days }, (_, index) => {
+  const data = Array.from({ length: days }, (_, index) => {
     const date = addDays(start, index);
     const key = isoDate(date);
     return {
@@ -56,6 +57,17 @@ function chartData(history: DatedNumberLog[] | undefined, period: Period, langua
       value: values.get(key) ?? 0,
     };
   });
+  return normalizedSearch
+    ? data.filter((entry) => `${entry.date} ${entry.label} ${entry.value}`.toLowerCase().includes(normalizedSearch))
+    : data;
+}
+
+function waterConsistencyData(history: DatedNumberLog[] | undefined, period: Period, language: 'en' | 'he', goal: number, search = '') {
+  return chartData(history, period, language, search).map((entry) => ({
+    ...entry,
+    reached: entry.value >= goal ? 1 : 0,
+    missed: entry.value >= goal ? 0 : 1,
+  }));
 }
 
 function weeklyWorkoutCount(history: Array<{ date: string; completed: boolean }> | undefined): number {
@@ -78,10 +90,10 @@ export default function Wellness() {
   const waterRef = useRef<HTMLDivElement | null>(null);
 
   const [stepsDate, setStepsDate] = useState(todayStr());
-  const [stepsText, setStepsText] = useState('');
   const [waterDate, setWaterDate] = useState(todayStr());
   const [waterText, setWaterText] = useState('');
   const [period, setPeriod] = useState<Period>('week');
+  const [historySearch, setHistorySearch] = useState('');
 
   const settings = {
     ...defaultHabitSettings(),
@@ -99,8 +111,16 @@ export default function Wellness() {
   const workoutDoneToday = (profile?.workoutHistory ?? []).some((entry) => entry.date === today && entry.completed);
   const workoutRemaining = Math.max(0, settings.workoutGoalPerWeek - workoutsThisWeek);
 
-  const stepChartData = useMemo(() => chartData(profile?.stepHistory, period, language), [profile?.stepHistory, period, language]);
-  const waterChartData = useMemo(() => chartData(profile?.waterHistory, period, language), [profile?.waterHistory, period, language]);
+  const stepChartData = useMemo(() => chartData(profile?.stepHistory, period, language, historySearch), [profile?.stepHistory, period, language, historySearch]);
+  const waterChartData = useMemo(() => chartData(profile?.waterHistory, period, language, historySearch), [profile?.waterHistory, period, language, historySearch]);
+  const waterConsistencyChartData = useMemo(
+    () => waterConsistencyData(profile?.waterHistory, period, language, settings.waterGoalMl, historySearch),
+    [profile?.waterHistory, period, language, settings.waterGoalMl, historySearch]
+  );
+  const waterPeriodData = useMemo(
+    () => chartData(profile?.waterHistory, period, language),
+    [profile?.waterHistory, period, language]
+  );
 
   useEffect(() => {
     const section = searchParams.get('section');
@@ -109,10 +129,6 @@ export default function Wellness() {
       requestAnimationFrame(() => target.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }));
     }
   }, [searchParams]);
-
-  useEffect(() => {
-    setStepsText(String(logValue(profile?.stepHistory, stepsDate) || ''));
-  }, [profile?.stepHistory, stepsDate]);
 
   useEffect(() => {
     setWaterText(String(logValue(profile?.waterHistory, waterDate) || ''));
@@ -131,11 +147,15 @@ export default function Wellness() {
       ? copy.wellness.alerts.water(settings.waterGoalMl - todayWater)
       : null,
   ].filter(Boolean) as string[];
+  const waterGoalDays = waterPeriodData.filter((entry) => entry.value >= settings.waterGoalMl).length;
+  const waterTotalDays = waterPeriodData.length;
+  const waterConsistencyPct = waterTotalDays > 0 ? Math.round((waterGoalDays / waterTotalDays) * 100) : 0;
+  const waterAverageMl = waterTotalDays > 0
+    ? Math.round(waterPeriodData.reduce((sum, entry) => sum + entry.value, 0) / waterTotalDays)
+    : 0;
 
-  function saveSteps() {
-    const parsed = Number(stepsText);
-    if (!Number.isFinite(parsed)) return;
-    logSteps(profile!.id, stepsDate, parsed);
+  function toggleStepsGoal() {
+    logSteps(profile!.id, stepsDate, logValue(profile?.stepHistory, stepsDate) >= settings.stepGoal ? 0 : settings.stepGoal);
   }
 
   function saveWater(nextValue?: number) {
@@ -185,6 +205,13 @@ export default function Wellness() {
             </button>
           ))}
         </div>
+        <input
+          value={historySearch}
+          onChange={(e) => setHistorySearch(e.target.value)}
+          placeholder={copy.wellness.searchHistory}
+          className="w-full rounded-xl border border-sand bg-cream-card px-3 py-2 text-sm text-plum-dark outline-none placeholder:text-ink-40"
+          data-testid="wellness-history-search"
+        />
 
         <section ref={stepsRef} className="scroll-mt-24 rounded-3xl border border-sand bg-cream-card p-4" data-testid="steps-section">
           <SectionHeader icon={<Footprints size={18} />} title={copy.wellness.steps.title} subtitle={copy.wellness.steps.subtitle(settings.stepGoal)} />
@@ -200,19 +227,18 @@ export default function Wellness() {
               className="rounded-xl border border-sand bg-cream-bg px-3 py-2 text-sm text-plum-dark"
               data-testid="steps-date-input"
             />
-            <input
-              type="number"
-              inputMode="numeric"
-              value={stepsText}
-              onChange={(e) => setStepsText(e.target.value)}
-              placeholder={copy.wellness.steps.placeholder}
-              className="rounded-xl border border-sand bg-cream-bg px-3 py-2 text-sm text-plum-dark"
-              data-testid="steps-input"
-            />
+            <button
+              onClick={toggleStepsGoal}
+              className={`flex items-center justify-center gap-2 rounded-xl border px-3 py-2 text-sm font-semibold ${
+                logValue(profile.stepHistory, stepsDate) >= settings.stepGoal ? 'border-sage-deep bg-sage-deep text-white' : 'border-sand bg-cream-bg text-plum-dark'
+              }`}
+              data-testid="steps-goal-toggle"
+            >
+              {logValue(profile.stepHistory, stepsDate) >= settings.stepGoal && <Check size={15} />}
+              {logValue(profile.stepHistory, stepsDate) >= settings.stepGoal ? copy.wellness.steps.done : copy.wellness.steps.markDone}
+            </button>
           </div>
-          <button onClick={saveSteps} className="mt-2 w-full rounded-2xl bg-sage-deep py-3 text-sm font-semibold text-white" data-testid="steps-save">
-            {copy.wellness.saveSteps}
-          </button>
+          <p className="mt-2 text-xs text-ink-40">{copy.wellness.steps.fastHelper}</p>
           <HistoryChart data={stepChartData} unit="" goal={settings.stepGoal} language={language} />
         </section>
 
@@ -236,7 +262,7 @@ export default function Wellness() {
           </label>
           <button
             onClick={() => toggleWorkoutLog(profile.id, today)}
-            className={`mt-3 flex w-full items-center justify-center gap-2 rounded-2xl py-3 text-sm font-semibold ${workoutDoneToday ? 'bg-sage-deep text-white' : 'bg-sand text-plum-dark'}`}
+            className={`mt-3 flex w-full items-center justify-center gap-2 rounded-2xl border py-3 text-sm font-semibold ${workoutDoneToday ? 'border-sage-deep bg-sage-deep text-white' : 'border-sand bg-cream-bg text-plum-dark'}`}
             data-testid="workout-toggle"
           >
             {workoutDoneToday && <Check size={16} />}
@@ -284,7 +310,19 @@ export default function Wellness() {
           <button onClick={() => saveWater()} className="mt-2 w-full rounded-2xl bg-sage-deep py-3 text-sm font-semibold text-white" data-testid="water-save">
             {copy.wellness.saveWater}
           </button>
-          <HistoryChart data={waterChartData} unit="ml" goal={settings.waterGoalMl} language={language} />
+          <div className="mt-4 rounded-2xl bg-cream-bg p-3" data-testid="water-consistency-summary">
+            <h3 className="text-xs font-semibold uppercase tracking-wide text-ink-40">{copy.wellness.water.consistencyTitle}</h3>
+            <p className="mt-1 text-sm font-semibold text-plum-dark">
+              {copy.wellness.water.goalDaysSummary(waterGoalDays, waterTotalDays, copy.progress.periods[period])}
+            </p>
+            <p className="mt-1 text-xs text-ink-40">{copy.wellness.water.consistencyHelper}</p>
+            <div className="mt-3 grid grid-cols-2 gap-2">
+              <Metric label={copy.wellness.water.goalHitRate} value={`${waterConsistencyPct}%`} />
+              <Metric label={copy.wellness.water.dailyAverage} value={formatAmountWithUnit(waterAverageMl, 'ml', language)} />
+            </div>
+            <WaterConsistencyChart data={waterConsistencyChartData} language={language} copy={copy} />
+          </div>
+          <HistoryChart data={waterChartData} unit="ml" goal={settings.waterGoalMl} language={language} testId="water-amount-history-chart" />
         </section>
       </div>
     </div>
@@ -319,14 +357,16 @@ function HistoryChart({
   unit,
   goal,
   language,
+  testId = 'wellness-history-chart',
 }: {
   data: Array<{ date: string; label: string; value: number }>;
   unit: string;
   goal: number;
   language: 'en' | 'he';
+  testId?: string;
 }) {
   return (
-    <div className="mt-4 h-44" data-testid="wellness-history-chart">
+    <div className="mt-4 h-44" data-testid={testId}>
       <ResponsiveContainer width="100%" height="100%">
         <LineChart data={data}>
           <CartesianGrid strokeDasharray="3 3" stroke="#EFE4D2" />
@@ -339,6 +379,37 @@ function HistoryChart({
           <Line type="monotone" dataKey="value" stroke="#5C7A58" strokeWidth={2.5} dot={{ r: 2.5, fill: '#5C7A58' }} />
           <Line type="monotone" dataKey={() => goal} stroke="#E8876A" strokeWidth={1.5} dot={false} strokeDasharray="4 4" />
         </LineChart>
+      </ResponsiveContainer>
+    </div>
+  );
+}
+
+function WaterConsistencyChart({
+  data,
+  language,
+  copy,
+}: {
+  data: Array<{ date: string; label: string; value: number; reached: number; missed: number }>;
+  language: 'en' | 'he';
+  copy: ReturnType<typeof useI18n>['copy'];
+}) {
+  return (
+    <div className="mt-4 h-36" data-testid="water-consistency-chart">
+      <ResponsiveContainer width="100%" height="100%">
+        <BarChart data={data}>
+          <CartesianGrid strokeDasharray="3 3" stroke="#EFE4D2" vertical={false} />
+          <XAxis dataKey="label" tick={{ fontSize: 10, fill: '#8F7F90' }} tickLine={false} />
+          <YAxis hide domain={[0, 1]} />
+          <Tooltip
+            contentStyle={{ borderRadius: 12, border: '1px solid #EFE4D2', fontSize: 12 }}
+            formatter={(_, __, item: any) => [
+              item?.payload?.reached ? copy.wellness.water.reachedGoal : copy.wellness.water.missedGoal,
+              formatAmountWithUnit(item?.payload?.value ?? 0, 'ml', language),
+            ]}
+          />
+          <Bar dataKey="reached" stackId="goal" fill="#5C7A58" radius={[8, 8, 0, 0]} />
+          <Bar dataKey="missed" stackId="goal" fill="#EFE4D2" radius={[8, 8, 0, 0]} />
+        </BarChart>
       </ResponsiveContainer>
     </div>
   );
