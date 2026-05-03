@@ -1,9 +1,11 @@
 import { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, Plus, Trash2 } from 'lucide-react';
+import { ArrowLeft, Check, ChevronDown, ChevronUp, Plus, Search, Trash2 } from 'lucide-react';
 import { selectActiveProfile, useAppStore } from '../store/appStore';
-import type { CheatMeal } from '../store/appStore';
+import type { CheatMeal, NutritionData } from '../store/appStore';
 import { directionalIconClass, formatDateValue, useI18n } from '../lib/i18n';
+import { cheatMealCatalogue, cheatMealCategories } from '../data/cheatMealDatabase';
+import type { CheatMealCatalogueItem } from '../data/cheatMealDatabase';
 
 const BASE_WEEKLY_ALLOWANCE = 2;
 
@@ -85,9 +87,14 @@ export default function CheatMeals() {
   const logCheatMeal = useAppStore((s) => s.logCheatMeal);
   const deleteCheatMeal = useAppStore((s) => s.deleteCheatMeal);
 
+  // Detailed-form state
   const [date, setDate] = useState(todayStr());
   const [name, setName] = useState('');
   const [notes, setNotes] = useState('');
+  const [showNutritionSection, setShowNutritionSection] = useState(false);
+  const [catalogueSearch, setCatalogueSearch] = useState('');
+  const [selectedCatalogueItem, setSelectedCatalogueItem] = useState<CheatMealCatalogueItem | null>(null);
+  const [useCustomName, setUseCustomName] = useState(false);
 
   const meals = useMemo(() => [...(profile?.cheatMeals ?? [])].sort((a, b) => b.date.localeCompare(a.date)), [profile]);
   const currentWeekStart = weekKey(todayStr());
@@ -96,20 +103,68 @@ export default function CheatMeals() {
   const nextStats = buildWeekStats(meals, nextWeekStart);
   const currentWeekMeals = meals.filter((meal) => weekKey(meal.date) === currentWeekStart);
 
+  // Quick tick: find if a isQuickTick entry already exists for today
+  const todayQuickTick = meals.find((m) => m.isQuickTick && m.date === todayStr());
+
+  // Catalogue search filtering
+  const filteredCatalogue = useMemo(() => {
+    const q = catalogueSearch.toLowerCase().trim();
+    if (!q) return cheatMealCatalogue;
+    return cheatMealCatalogue.filter(
+      (item) =>
+        item.name.toLowerCase().includes(q) ||
+        cheatMealCategories[item.category].toLowerCase().includes(q),
+    );
+  }, [catalogueSearch]);
+
   if (!profile) return null;
 
+  function handleQuickTick() {
+    if (todayQuickTick) {
+      deleteCheatMeal(profile!.id, todayQuickTick.id);
+    } else {
+      logCheatMeal(profile!.id, {
+        id: `cheat-${Date.now()}-${Math.random().toString(36).slice(2)}`,
+        date: todayStr(),
+        name: 'Cheat meal',
+        isQuickTick: true,
+      });
+    }
+  }
+
+  function handleSelectCatalogueItem(item: CheatMealCatalogueItem) {
+    setSelectedCatalogueItem(item);
+    setUseCustomName(false);
+    if (!useCustomName) setName(item.name);
+    setCatalogueSearch('');
+  }
+
   function addMeal() {
-    const trimmed = name.trim();
-    if (!trimmed) return;
+    const resolvedName = selectedCatalogueItem && !useCustomName ? selectedCatalogueItem.name : name.trim();
+    if (!resolvedName) return;
+
+    const nutrition: NutritionData | undefined =
+      selectedCatalogueItem && !useCustomName ? selectedCatalogueItem.nutrition : undefined;
+
     logCheatMeal(profile!.id, {
       id: `cheat-${Date.now()}-${Math.random().toString(36).slice(2)}`,
       date,
-      name: trimmed,
+      name: resolvedName,
       notes: notes.trim() || undefined,
+      nutrition,
+      selectedCheatId: selectedCatalogueItem && !useCustomName ? selectedCatalogueItem.id : undefined,
     });
+
+    // Reset form
     setName('');
     setNotes('');
+    setSelectedCatalogueItem(null);
+    setUseCustomName(false);
+    setShowNutritionSection(false);
+    setCatalogueSearch('');
   }
+
+  const canAdd = selectedCatalogueItem && !useCustomName ? true : name.trim().length > 0;
 
   return (
     <div className="main-content min-h-screen bg-cream-bg">
@@ -126,6 +181,32 @@ export default function CheatMeals() {
       </div>
 
       <div className="px-4 py-4 space-y-4">
+        {/* ── Quick tick ───────────────────────────────────────────────── */}
+        <button
+          onClick={handleQuickTick}
+          data-testid="cheat-quick-tick"
+          className={`w-full rounded-3xl border p-4 flex items-center gap-3 transition-colors ${
+            todayQuickTick
+              ? 'border-sage-deep bg-sage-primary/10'
+              : 'border-sand bg-cream-card hover:bg-sand/30'
+          }`}
+        >
+          <div className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full border-2 transition-colors ${
+            todayQuickTick ? 'border-sage-deep bg-sage-deep text-white' : 'border-sand bg-cream-bg text-ink-40'
+          }`}>
+            <Check size={18} strokeWidth={3} />
+          </div>
+          <div className="text-left flex-1">
+            <p className={`text-sm font-semibold ${todayQuickTick ? 'text-sage-deep' : 'text-plum-dark'}`}>
+              {todayQuickTick ? copy.cheatMeals.quickTickDone : copy.cheatMeals.quickTickPrompt}
+            </p>
+            {todayQuickTick && (
+              <p className="text-xs text-ink-40">{copy.cheatMeals.quickTickRemove}</p>
+            )}
+          </div>
+        </button>
+
+        {/* ── Stats ────────────────────────────────────────────────────── */}
         <div className="rounded-3xl border border-sand bg-cream-card p-4" data-testid="cheat-meal-stats">
           <div className="grid grid-cols-3 gap-2">
             <Metric label={copy.cheatMeals.allowedThisWeek} value={String(currentStats.allowance)} />
@@ -140,8 +221,10 @@ export default function CheatMeals() {
           <p className="mt-2 text-xs text-ink-40">{copy.cheatMeals.rule}</p>
         </div>
 
+        {/* ── Detailed log form ─────────────────────────────────────────── */}
         <div className="rounded-3xl border border-sand bg-cream-card p-4 space-y-3" data-testid="cheat-meal-form">
           <h2 className="text-sm font-semibold text-plum-dark">{copy.cheatMeals.logTitle}</h2>
+
           <div className="grid grid-cols-1 gap-2 sm:grid-cols-[0.9fr_1.1fr] sm:items-end">
             <label className="flex flex-col text-xs text-ink-60">
               {copy.cheatMeals.date}
@@ -156,31 +239,129 @@ export default function CheatMeals() {
             <label className="flex flex-col text-xs text-ink-60">
               {copy.cheatMeals.name}
               <input
-                value={name}
-                onChange={(e) => setName(e.target.value)}
+                value={selectedCatalogueItem && !useCustomName ? selectedCatalogueItem.name : name}
+                onChange={(e) => {
+                  setName(e.target.value);
+                  setUseCustomName(true);
+                  setSelectedCatalogueItem(null);
+                }}
                 placeholder={copy.cheatMeals.namePlaceholder}
                 className="mt-1 h-10 w-full rounded-xl border border-sand bg-cream-bg px-3 py-2 text-sm text-plum-dark"
                 data-testid="cheat-name-input"
               />
             </label>
           </div>
+
           <textarea
             value={notes}
             onChange={(e) => setNotes(e.target.value)}
             placeholder={copy.cheatMeals.notesPlaceholder}
-            className="min-h-20 w-full rounded-xl border border-sand bg-cream-bg px-3 py-2 text-sm text-plum-dark"
+            className="min-h-16 w-full rounded-xl border border-sand bg-cream-bg px-3 py-2 text-sm text-plum-dark"
             data-testid="cheat-notes-input"
           />
+
+          {/* Nutrition details accordion */}
+          <button
+            type="button"
+            onClick={() => setShowNutritionSection((v) => !v)}
+            className="flex w-full items-center justify-between rounded-xl border border-sand bg-cream-bg px-3 py-2 text-xs text-ink-60 hover:bg-sand/30 transition-colors"
+            data-testid="cheat-nutrition-toggle"
+          >
+            <span className="font-medium text-plum-dark">{copy.cheatMeals.addNutritionDetails}</span>
+            {showNutritionSection ? <ChevronUp size={15} /> : <ChevronDown size={15} />}
+          </button>
+
+          {showNutritionSection && (
+            <div className="space-y-3 rounded-2xl border border-sand bg-cream-bg p-3">
+              <p className="text-xs font-semibold text-plum-dark">{copy.cheatMeals.catalogueTitle}</p>
+
+              {/* Search */}
+              <div className="relative">
+                <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-ink-40" />
+                <input
+                  value={catalogueSearch}
+                  onChange={(e) => setCatalogueSearch(e.target.value)}
+                  placeholder={copy.cheatMeals.catalogueSearch}
+                  className="h-9 w-full rounded-xl border border-sand bg-cream-card pl-8 pr-3 text-sm text-plum-dark"
+                  data-testid="cheat-catalogue-search"
+                />
+              </div>
+
+              {/* Selected item preview */}
+              {selectedCatalogueItem && !useCustomName && (
+                <div className="rounded-xl bg-sage-primary/10 border border-sage-primary/30 px-3 py-2">
+                  <p className="text-xs font-semibold text-sage-deep">{selectedCatalogueItem.name}</p>
+                  <p className="text-[11px] text-ink-60 mt-0.5">
+                    {copy.cheatMeals.nutritionSummary(
+                      selectedCatalogueItem.nutrition.calories,
+                      selectedCatalogueItem.nutrition.protein_g,
+                    )}
+                    {' · '}
+                    {selectedCatalogueItem.servingDescription}
+                  </p>
+                  <div className="mt-1.5 flex flex-wrap gap-x-3 gap-y-0.5 text-[10px] text-ink-40">
+                    <span>Carbs {selectedCatalogueItem.nutrition.carbs_g}g</span>
+                    <span>Fat {selectedCatalogueItem.nutrition.fat_g}g</span>
+                    <span>Sat.fat {selectedCatalogueItem.nutrition.saturated_fat_g}g</span>
+                    <span>Fiber {selectedCatalogueItem.nutrition.fiber_g}g</span>
+                    <span>Sugar {selectedCatalogueItem.nutrition.sugar_g}g</span>
+                    <span>Sodium {selectedCatalogueItem.nutrition.sodium_mg}mg</span>
+                  </div>
+                </div>
+              )}
+
+              {/* Catalogue list */}
+              <div className="max-h-56 overflow-y-auto space-y-1 pr-0.5" data-testid="cheat-catalogue-list">
+                {filteredCatalogue.map((item) => (
+                  <button
+                    key={item.id}
+                    type="button"
+                    onClick={() => handleSelectCatalogueItem(item)}
+                    className={`w-full rounded-xl border px-3 py-2 text-left transition-colors ${
+                      selectedCatalogueItem?.id === item.id && !useCustomName
+                        ? 'border-sage-deep bg-sage-primary/10'
+                        : 'border-sand bg-cream-card hover:bg-sand/30'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between gap-2">
+                      <p className="text-xs font-semibold text-plum-dark leading-snug">{item.name}</p>
+                      <span className="shrink-0 rounded-full bg-sand px-2 py-0.5 text-[9px] uppercase tracking-wide text-ink-40">
+                        {cheatMealCategories[item.category]}
+                      </span>
+                    </div>
+                    <p className="text-[10px] text-ink-40 mt-0.5">
+                      {item.nutrition.calories} kcal · {item.nutrition.protein_g}g protein · {item.servingDescription}
+                    </p>
+                  </button>
+                ))}
+              </div>
+
+              {/* Custom mode link */}
+              <button
+                type="button"
+                onClick={() => {
+                  setUseCustomName(true);
+                  setSelectedCatalogueItem(null);
+                  setShowNutritionSection(false);
+                }}
+                className="text-xs text-ink-40 hover:text-plum-dark underline underline-offset-2"
+              >
+                {copy.cheatMeals.customEntry}
+              </button>
+            </div>
+          )}
+
           <button
             onClick={addMeal}
-            disabled={!name.trim()}
-            className={`w-full rounded-2xl py-3 text-sm font-semibold ${name.trim() ? 'bg-sage-deep text-white' : 'bg-sand text-ink-40'}`}
+            disabled={!canAdd}
+            className={`w-full rounded-2xl py-3 text-sm font-semibold ${canAdd ? 'bg-sage-deep text-white' : 'bg-sand text-ink-40'}`}
             data-testid="cheat-save"
           >
             <Plus size={16} className="inline-block" /> {copy.cheatMeals.add}
           </button>
         </div>
 
+        {/* ── This week ────────────────────────────────────────────────── */}
         <div className="rounded-3xl border border-sand bg-cream-card p-4" data-testid="cheat-current-week">
           <h2 className="text-sm font-semibold text-plum-dark mb-3">{copy.cheatMeals.currentWeek}</h2>
           {currentWeekMeals.length === 0 ? (
@@ -192,6 +373,7 @@ export default function CheatMeals() {
                   key={meal.id}
                   meal={meal}
                   language={language}
+                  nutritionSummaryLabel={copy.cheatMeals.nutritionSummary}
                   onDelete={() => deleteCheatMeal(profile.id, meal.id)}
                 />
               ))}
@@ -199,6 +381,7 @@ export default function CheatMeals() {
           )}
         </div>
 
+        {/* ── History ───────────────────────────────────────────────────── */}
         <div className="rounded-3xl border border-sand bg-cream-card p-4" data-testid="cheat-history">
           <h2 className="text-sm font-semibold text-plum-dark mb-3">{copy.cheatMeals.history}</h2>
           {meals.length === 0 ? (
@@ -210,6 +393,7 @@ export default function CheatMeals() {
                   key={meal.id}
                   meal={meal}
                   language={language}
+                  nutritionSummaryLabel={copy.cheatMeals.nutritionSummary}
                   onDelete={() => deleteCheatMeal(profile.id, meal.id)}
                 />
               ))}
@@ -233,10 +417,12 @@ function Metric({ label, value }: { label: string; value: string }) {
 function MealRow({
   meal,
   language,
+  nutritionSummaryLabel,
   onDelete,
 }: {
   meal: CheatMeal;
   language: 'en' | 'he';
+  nutritionSummaryLabel: (kcal: number, protein: number) => string;
   onDelete: () => void;
 }) {
   return (
@@ -247,6 +433,11 @@ function MealRow({
           {formatDateValue(new Date(meal.date), language, { month: 'short', day: 'numeric' })}
           {meal.notes ? ` · ${meal.notes}` : ''}
         </p>
+        {meal.nutrition && (
+          <p className="text-[11px] text-sage-deep mt-0.5">
+            {nutritionSummaryLabel(meal.nutrition.calories, meal.nutrition.protein_g)}
+          </p>
+        )}
       </div>
       <button onClick={onDelete} className="tap-target flex items-center justify-center text-terracotta">
         <Trash2 size={15} />
