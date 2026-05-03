@@ -532,7 +532,7 @@ export default function Progress() {
                                 type="date"
                                 value={editWeightDate}
                                 onChange={(e) => setEditWeightDate(e.target.value)}
-                                className="mt-1 w-full rounded-lg border border-sand bg-white px-2 py-1.5 text-xs text-plum-dark"
+                                className="mt-1 w-full rounded-lg border border-sand bg-cream-bg px-2 py-1.5 text-xs text-plum-dark [color-scheme:light]"
                                 data-testid="weight-entry-date-input"
                               />
                             </label>
@@ -543,7 +543,7 @@ export default function Progress() {
                                 inputMode="decimal"
                                 value={editWeightKg}
                                 onChange={(e) => setEditWeightKg(e.target.value)}
-                                className="mt-1 w-full rounded-lg border border-sand bg-white px-2 py-1.5 text-xs text-plum-dark font-mono-num"
+                                className="mt-1 w-full rounded-lg border border-sand bg-cream-bg px-2 py-1.5 text-xs text-plum-dark font-mono-num [color-scheme:light]"
                                 data-testid="weight-entry-weight-input"
                               />
                             </label>
