@@ -591,7 +591,9 @@ function HistoryChart({
             tickFormatter={(value: number) => axisValue(value, unit)}
           />
           <Tooltip
-            contentStyle={{ borderRadius: 12, border: '1px solid #EFE4D2', fontSize: 12 }}
+            contentStyle={{ borderRadius: 12, border: '1px solid #EFE4D2', fontSize: 12, background: '#FAF6F0', color: '#2D1B2E' }}
+            labelStyle={{ color: '#2D1B2E', fontWeight: 600 }}
+            itemStyle={{ color: '#2D1B2E' }}
             formatter={(value: number) => [unit ? formatAmountWithUnit(value, unit, language) : value.toLocaleString(), '']}
           />
           <ReferenceLine y={goal} stroke="#E8876A" strokeWidth={1.5} strokeDasharray="4 4" />
@@ -632,7 +634,9 @@ function WaterConsistencyChart({
           />
           <YAxis hide domain={[0, 1]} />
           <Tooltip
-            contentStyle={{ borderRadius: 12, border: '1px solid #EFE4D2', fontSize: 12 }}
+            contentStyle={{ borderRadius: 12, border: '1px solid #EFE4D2', fontSize: 12, background: '#FAF6F0', color: '#2D1B2E' }}
+            labelStyle={{ color: '#2D1B2E', fontWeight: 600 }}
+            itemStyle={{ color: '#2D1B2E' }}
             formatter={(_, __, item) => [
               item?.payload?.state === 'reached'
                 ? copy.wellness.water.reachedGoal
