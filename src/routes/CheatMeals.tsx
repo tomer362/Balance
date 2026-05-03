@@ -10,6 +10,16 @@ import { searchIngredients, scaleIngredient } from '../data/ingredientDatabase';
 import type { Ingredient } from '../data/ingredientDatabase';
 
 const BASE_WEEKLY_ALLOWANCE = 2;
+const EMPTY_NUTRITION: NutritionData = {
+  calories: 0,
+  protein_g: 0,
+  carbs_g: 0,
+  fiber_g: 0,
+  sugar_g: 0,
+  fat_g: 0,
+  saturated_fat_g: 0,
+  sodium_mg: 0,
+};
 
 function todayStr(): string {
   return new Date().toISOString().split('T')[0];
@@ -82,6 +92,25 @@ function buildWeekStats(meals: CheatMeal[], targetWeekStart: string) {
   return result;
 }
 
+function sumNutritionParts(...parts: Array<NutritionData | null | undefined>): NutritionData | undefined {
+  const definedParts = parts.filter((part): part is NutritionData => Boolean(part));
+  if (definedParts.length === 0) return undefined;
+
+  return definedParts.reduce<NutritionData>(
+    (acc, part) => ({
+      calories: acc.calories + part.calories,
+      protein_g: acc.protein_g + part.protein_g,
+      carbs_g: acc.carbs_g + part.carbs_g,
+      fiber_g: acc.fiber_g + part.fiber_g,
+      sugar_g: acc.sugar_g + part.sugar_g,
+      fat_g: acc.fat_g + part.fat_g,
+      saturated_fat_g: acc.saturated_fat_g + part.saturated_fat_g,
+      sodium_mg: acc.sodium_mg + part.sodium_mg,
+    }),
+    EMPTY_NUTRITION,
+  );
+}
+
 export default function CheatMeals() {
   const { copy, language } = useI18n();
   const navigate = useNavigate();
@@ -128,6 +157,7 @@ export default function CheatMeals() {
 
   // Ingredient search results (live)
   const ingredientResults = useMemo(() => searchIngredients(ingredientSearch, 20), [ingredientSearch]);
+  const selectedMealNutrition = selectedCatalogueItem?.nutrition ?? null;
 
   // Sum basket nutritions
   const basketNutrition = useMemo((): NutritionData | null => {
@@ -146,9 +176,14 @@ export default function CheatMeals() {
           sodium_mg: acc.sodium_mg + n.sodium_mg,
         };
       },
-      { calories: 0, protein_g: 0, carbs_g: 0, fiber_g: 0, sugar_g: 0, fat_g: 0, saturated_fat_g: 0, sodium_mg: 0 },
+      EMPTY_NUTRITION,
     );
   }, [basket]);
+  const combinedNutrition = useMemo(
+    () => sumNutritionParts(selectedMealNutrition, basketNutrition),
+    [selectedMealNutrition, basketNutrition],
+  );
+  const hasDetailedSelection = !!selectedCatalogueItem || basket.length > 0;
 
   if (!profile) return null;
 
@@ -167,8 +202,7 @@ export default function CheatMeals() {
 
   function handleSelectCatalogueItem(item: CheatMealCatalogueItem) {
     setSelectedCatalogueItem(item);
-    setUseCustomName(false);
-    if (!useCustomName) setName(item.name);
+    if (!useCustomName || !name.trim()) setName(item.name);
     setCatalogueSearch('');
   }
 
@@ -208,18 +242,15 @@ export default function CheatMeals() {
     let selectedCheatId: string | undefined;
     let loggedIngredients: CheatMeal['loggedIngredients'];
 
-    if (detailMode === 'ingredients' && basket.length > 0) {
-      resolvedName = name.trim() || copy.cheatMeals.defaultCheatName;
-      nutrition = basketNutrition ?? undefined;
-      loggedIngredients = basket.map(({ ingredient, amountG }) => ({
+    if (hasDetailedSelection) {
+      resolvedName = name.trim() || selectedCatalogueItem?.name || copy.cheatMeals.defaultCheatName;
+      nutrition = combinedNutrition;
+      selectedCheatId = selectedCatalogueItem?.id;
+      loggedIngredients = basket.length > 0 ? basket.map(({ ingredient, amountG }) => ({
         ingredientId: ingredient.id,
         amountG,
         name: ingredient.name,
-      }));
-    } else if (selectedCatalogueItem && !useCustomName) {
-      resolvedName = selectedCatalogueItem.name;
-      nutrition = selectedCatalogueItem.nutrition;
-      selectedCheatId = selectedCatalogueItem.id;
+      })) : undefined;
     } else {
       resolvedName = name.trim();
       if (!resolvedName) return;
@@ -238,10 +269,7 @@ export default function CheatMeals() {
     resetForm();
   }
 
-  const canAdd =
-    (detailMode === 'ingredients' && basket.length > 0) ||
-    (detailMode === 'meals' && selectedCatalogueItem && !useCustomName) ||
-    name.trim().length > 0;
+  const canAdd = hasDetailedSelection || name.trim().length > 0;
 
 
   return (
@@ -317,11 +345,10 @@ export default function CheatMeals() {
             <label className="flex flex-col text-xs text-ink-60">
               {copy.cheatMeals.name}
               <input
-                value={selectedCatalogueItem && !useCustomName ? selectedCatalogueItem.name : name}
+                value={name}
                 onChange={(e) => {
                   setName(e.target.value);
-                  setUseCustomName(true);
-                  setSelectedCatalogueItem(null);
+                  setUseCustomName(e.target.value.trim().length > 0);
                 }}
                 placeholder={copy.cheatMeals.namePlaceholder}
                 className="mt-1 h-10 w-full rounded-xl border border-sand bg-cream-bg px-3 py-2 text-sm text-plum-dark"
@@ -388,17 +415,28 @@ export default function CheatMeals() {
                   </div>
 
                   {/* Selected item preview */}
-                  {selectedCatalogueItem && !useCustomName && (
+                  {selectedCatalogueItem && (
                     <div className="rounded-xl bg-sage-primary/10 border border-sage-primary/30 px-3 py-2">
-                      <p className="text-xs font-semibold text-sage-deep">{selectedCatalogueItem.name}</p>
-                      <p className="text-[11px] text-ink-60 mt-0.5">
-                        {copy.cheatMeals.nutritionSummary(
-                          selectedCatalogueItem.nutrition.calories,
-                          selectedCatalogueItem.nutrition.protein_g,
-                        )}
-                        {' · '}
-                        {selectedCatalogueItem.servingDescription}
-                      </p>
+                      <div className="flex items-start justify-between gap-2">
+                        <div>
+                          <p className="text-xs font-semibold text-sage-deep">{selectedCatalogueItem.name}</p>
+                          <p className="text-[11px] text-ink-60 mt-0.5">
+                            {copy.cheatMeals.nutritionSummary(
+                              selectedCatalogueItem.nutrition.calories,
+                              selectedCatalogueItem.nutrition.protein_g,
+                            )}
+                            {' · '}
+                            {selectedCatalogueItem.servingDescription}
+                          </p>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => setSelectedCatalogueItem(null)}
+                          className="text-terracotta hover:text-terracotta/70"
+                        >
+                          <Trash2 size={13} />
+                        </button>
+                      </div>
                       <div className="mt-1.5 flex flex-wrap gap-x-3 gap-y-0.5 text-[10px] text-ink-40">
                         <span>Carbs {selectedCatalogueItem.nutrition.carbs_g}g</span>
                         <span>Fat {selectedCatalogueItem.nutrition.fat_g}g</span>
@@ -418,7 +456,7 @@ export default function CheatMeals() {
                         type="button"
                         onClick={() => handleSelectCatalogueItem(item)}
                         className={`w-full rounded-xl border px-3 py-2 text-left transition-colors ${
-                          selectedCatalogueItem?.id === item.id && !useCustomName
+                          selectedCatalogueItem?.id === item.id
                             ? 'border-sage-deep bg-sage-primary/10'
                             : 'border-sand bg-cream-card hover:bg-sand/30'
                         }`}
@@ -440,9 +478,8 @@ export default function CheatMeals() {
                   <button
                     type="button"
                     onClick={() => {
-                      setUseCustomName(true);
                       setSelectedCatalogueItem(null);
-                      setShowNutritionSection(false);
+                      setUseCustomName(true);
                     }}
                     className="text-xs text-ink-40 hover:text-plum-dark underline underline-offset-2"
                   >
@@ -569,6 +606,32 @@ export default function CheatMeals() {
                     </div>
                   )}
                 </>
+              )}
+
+              {combinedNutrition && (
+                <div className="rounded-xl bg-sage-primary/10 border border-sage-primary/30 px-3 py-2" data-testid="cheat-total-preview">
+                  <div className="flex flex-wrap gap-1.5 text-[10px] text-ink-40">
+                    {selectedCatalogueItem && (
+                      <span className="rounded-full bg-white/70 px-2 py-0.5">
+                        {copy.cheatMeals.mealsTab} · {selectedCatalogueItem.name}
+                      </span>
+                    )}
+                    {basket.length > 0 && (
+                      <span className="rounded-full bg-white/70 px-2 py-0.5">
+                        {copy.cheatMeals.ingredientsTab} · {basket.length}
+                      </span>
+                    )}
+                  </div>
+                  <p className="mt-2 text-xs font-semibold text-sage-deep">{copy.cheatMeals.basketTotal}</p>
+                  <div className="mt-1 flex flex-wrap gap-x-3 gap-y-0.5 text-[10px] text-ink-60">
+                    <span>{Math.round(combinedNutrition.calories)} kcal</span>
+                    <span>{Math.round(combinedNutrition.protein_g)}g protein</span>
+                    <span>{Math.round(combinedNutrition.carbs_g)}g carbs</span>
+                    <span>{Math.round(combinedNutrition.fat_g)}g fat</span>
+                    <span>{Math.round(combinedNutrition.fiber_g)}g fiber</span>
+                    <span>{Math.round(combinedNutrition.sodium_mg)}mg sodium</span>
+                  </div>
+                </div>
               )}
             </div>
           )}

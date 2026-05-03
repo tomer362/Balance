@@ -64,8 +64,14 @@ test.describe('Dashboard EditMealSheet', () => {
     await expect(page.getByTestId('nutrition-detail-per-serving')).toContainText('24 mg');
   });
 
-  test('dashboard weight check-in updates weight and derived goal', async ({ page }) => {
+  test('dashboard weight check-in opens progress history', async ({ page }) => {
     await page.getByTestId('dashboard-weight-update').click();
+    await expect(page).toHaveURL(/\/progress\?section=weight/);
+    await expect(page.getByTestId('weight-history-section')).toBeVisible();
+  });
+
+  test('dashboard weight log shortcut updates weight and derived goal', async ({ page }) => {
+    await page.getByTestId('dashboard-shortcut-weight-log').click();
     await expect(page.getByTestId('weight-update-sheet')).toBeVisible();
     await page.getByTestId('dashboard-weight-input').fill('80');
     await page.getByTestId('dashboard-weight-save').click();

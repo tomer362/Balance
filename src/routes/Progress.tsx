@@ -409,94 +409,110 @@ export default function Progress() {
             data-testid="weight-history-search"
           />
 
-          {visibleWeightChartData.length > 1 ? (
+          {filteredWeightHistory.length > 0 ? (
             <>
-              <div className="grid grid-cols-2 gap-2 mb-4" data-testid="weight-analysis-cards">
-                <MetricPill
-                  label={copy.progress.current}
-                  value={formatAmountWithUnit(latestWeight, 'kg', language, 1)}
-                  tone="neutral"
-                />
-                <MetricPill
-                  label={copy.progress.changeThisPeriod}
-                  value={`${weightChange > 0 ? '+' : ''}${formatAmountWithUnit(weightChange, 'kg', language, 1)}`}
-                  tone={weightChange > 0 ? (profile.mode === 'bulk' ? 'good' : 'warn') : weightChange < 0 ? (profile.mode === 'bulk' ? 'warn' : 'good') : 'neutral'}
-                />
-                <MetricPill
-                  label={copy.progress.weeklyAverage}
-                  value={formatAmountWithUnit(currentWeeklyAverage, 'kg', language, 1)}
-                  tone="neutral"
-                />
-                <MetricPill
-                  label={copy.progress.avgWeeklyRate}
-                  value={`${averageWeeklyChange > 0 ? '+' : ''}${formatAmountWithUnit(averageWeeklyChange, 'kg', language, 2)}`}
-                  tone={averageWeeklyChange > 0 ? (profile.mode === 'bulk' ? 'good' : 'warn') : averageWeeklyChange < 0 ? (profile.mode === 'bulk' ? 'warn' : 'good') : 'neutral'}
-                />
-              </div>
+              {visibleWeightChartData.length > 1 ? (
+                <>
+                  <div className="grid grid-cols-2 gap-2 mb-4" data-testid="weight-analysis-cards">
+                    <MetricPill
+                      label={copy.progress.current}
+                      value={formatAmountWithUnit(latestWeight, 'kg', language, 1)}
+                      tone="neutral"
+                    />
+                    <MetricPill
+                      label={copy.progress.changeThisPeriod}
+                      value={`${weightChange > 0 ? '+' : ''}${formatAmountWithUnit(weightChange, 'kg', language, 1)}`}
+                      tone={weightChange > 0 ? (profile.mode === 'bulk' ? 'good' : 'warn') : weightChange < 0 ? (profile.mode === 'bulk' ? 'warn' : 'good') : 'neutral'}
+                    />
+                    <MetricPill
+                      label={copy.progress.weeklyAverage}
+                      value={formatAmountWithUnit(currentWeeklyAverage, 'kg', language, 1)}
+                      tone="neutral"
+                    />
+                    <MetricPill
+                      label={copy.progress.avgWeeklyRate}
+                      value={`${averageWeeklyChange > 0 ? '+' : ''}${formatAmountWithUnit(averageWeeklyChange, 'kg', language, 2)}`}
+                      tone={averageWeeklyChange > 0 ? (profile.mode === 'bulk' ? 'good' : 'warn') : averageWeeklyChange < 0 ? (profile.mode === 'bulk' ? 'warn' : 'good') : 'neutral'}
+                    />
+                  </div>
 
-              <ResponsiveContainer width="100%" height={190}>
-                <LineChart data={visibleWeightChartData}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#EFE4D2" />
-                  <XAxis dataKey="label" tick={{ fontSize: 10, fill: '#8F7F90' }} tickLine={false} />
-                  <YAxis
-                    domain={['auto', 'auto']}
-                    tick={{ fontSize: 10, fill: '#8F7F90' }}
-                    tickLine={false}
-                    width={32}
-                  />
-                  <Legend wrapperStyle={{ fontSize: 11, paddingTop: 8 }} />
-                  <Tooltip
-                    contentStyle={{ borderRadius: 12, border: '1px solid #EFE4D2', fontSize: 12 }}
-                    formatter={(val: number, key: string) => [formatAmountWithUnit(val, 'kg', language, 1), key === 'weeklyAverage' ? copy.progress.weeklyAverage : key === 'movingAverage' ? copy.progress.shortTrend : copy.progress.dailyEntries]}
-                    labelFormatter={(_, payload: any) => payload?.[0]?.payload?.label ?? ''}
-                  />
-                  <Line
-                    type="monotone"
-                    dataKey="weight"
-                    stroke="#8FA989"
-                    strokeWidth={2.5}
-                    dot={{ fill: '#8FA989', r: 3 }}
-                    activeDot={{ r: 5 }}
-                    name={copy.progress.dailyEntries}
-                  />
-                  <Line
-                    type="monotone"
-                    dataKey="weeklyAverage"
-                    stroke="#E8876A"
-                    strokeWidth={2.5}
-                    dot={false}
-                    strokeDasharray="5 4"
-                    name={copy.progress.weeklyAverage}
-                  />
-                  <Line
-                    type="monotone"
-                    dataKey="movingAverage"
-                    stroke="#3F5D3C"
-                    strokeWidth={1.8}
-                    dot={false}
-                    name={copy.progress.shortTrend}
-                  />
-                </LineChart>
-              </ResponsiveContainer>
+                  <ResponsiveContainer width="100%" height={190}>
+                    <LineChart data={visibleWeightChartData}>
+                      <CartesianGrid strokeDasharray="3 3" stroke="#EFE4D2" />
+                      <XAxis dataKey="label" tick={{ fontSize: 10, fill: '#8F7F90' }} tickLine={false} />
+                      <YAxis
+                        domain={['auto', 'auto']}
+                        tick={{ fontSize: 10, fill: '#8F7F90' }}
+                        tickLine={false}
+                        width={32}
+                      />
+                      <Legend wrapperStyle={{ fontSize: 11, paddingTop: 8 }} />
+                      <Tooltip
+                        contentStyle={{ borderRadius: 12, border: '1px solid #EFE4D2', fontSize: 12 }}
+                        formatter={(val: number, key: string) => [formatAmountWithUnit(val, 'kg', language, 1), key === 'weeklyAverage' ? copy.progress.weeklyAverage : key === 'movingAverage' ? copy.progress.shortTrend : copy.progress.dailyEntries]}
+                      />
+                      <Line
+                        type="monotone"
+                        dataKey="weight"
+                        stroke="#8FA989"
+                        strokeWidth={2.5}
+                        dot={{ fill: '#8FA989', r: 3 }}
+                        activeDot={{ r: 5 }}
+                        name={copy.progress.dailyEntries}
+                      />
+                      <Line
+                        type="monotone"
+                        dataKey="weeklyAverage"
+                        stroke="#E8876A"
+                        strokeWidth={2.5}
+                        dot={false}
+                        strokeDasharray="5 4"
+                        name={copy.progress.weeklyAverage}
+                      />
+                      <Line
+                        type="monotone"
+                        dataKey="movingAverage"
+                        stroke="#3F5D3C"
+                        strokeWidth={1.8}
+                        dot={false}
+                        name={copy.progress.shortTrend}
+                      />
+                    </LineChart>
+                  </ResponsiveContainer>
 
-              <div className="mt-4 rounded-2xl bg-sand/35 p-3 space-y-2" data-testid="weight-analysis-summary">
-                <p className="text-xs text-ink-60">
-                  {copy.progress.rangeSummary(
-                    formatAmountWithUnit(minWeight, 'kg', language, 1),
-                    formatAmountWithUnit(maxWeight, 'kg', language, 1),
-                    entryCount
-                  )}
-                </p>
-                <p className="text-xs text-ink-60">
-                  {copy.progress.goalProgress(progressTowardGoal)}
-                </p>
-                <p className="text-xs text-ink-60">
-                  {copy.progress.trendVsScale(
-                    formatAmountWithUnit(recentMovingAverage, 'kg', language, 1),
-                    copy.progress.periods[period]
-                  )}
-                </p>
-              </div>
+                  <div className="mt-4 rounded-2xl bg-sand/35 p-3 space-y-2" data-testid="weight-analysis-summary">
+                    <p className="text-xs text-ink-60">
+                      {copy.progress.rangeSummary(
+                        formatAmountWithUnit(minWeight, 'kg', language, 1),
+                        formatAmountWithUnit(maxWeight, 'kg', language, 1),
+                        entryCount
+                      )}
+                    </p>
+                    <p className="text-xs text-ink-60">
+                      {copy.progress.goalProgress(progressTowardGoal)}
+                    </p>
+                    <p className="text-xs text-ink-60">
+                      {copy.progress.trendVsScale(
+                        formatAmountWithUnit(recentMovingAverage, 'kg', language, 1),
+                        copy.progress.periods[period]
+                      )}
+                    </p>
+                  </div>
+                </>
+              ) : (
+                <div className="grid grid-cols-2 gap-2 mb-4" data-testid="weight-analysis-cards">
+                  <MetricPill
+                    label={copy.progress.current}
+                    value={formatAmountWithUnit(latestWeight, 'kg', language, 1)}
+                    tone="neutral"
+                  />
+                  <MetricPill
+                    label={copy.progress.entryDate}
+                    value={formatShortDate(new Date(latestWeightDate), language)}
+                    tone="neutral"
+                  />
+                </div>
+              )}
 
               <div className="mt-3" data-testid="weight-history-list">
                 <h3 className="text-xs font-semibold text-ink-40 uppercase tracking-wide mb-2">{copy.progress.recentEntries}</h3>

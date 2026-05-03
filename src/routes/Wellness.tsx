@@ -2,12 +2,25 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { ArrowLeft, Check, Droplets, Dumbbell, Footprints } from 'lucide-react';
-import { Bar, BarChart, CartesianGrid, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
+import { Bar, BarChart, CartesianGrid, Cell, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 import { defaultHabitSettings, selectActiveProfile, useAppStore } from '../store/appStore';
 import type { DatedNumberLog } from '../store/appStore';
 import { directionalIconClass, formatAmountWithUnit, formatDateValue, useI18n } from '../lib/i18n';
 
 type Period = 'week' | 'month' | '3m';
+
+type ChartPoint = {
+  date: string;
+  label: string;
+  shortLabel: string;
+  value: number;
+  hasEntry: boolean;
+};
+
+type WaterConsistencyPoint = ChartPoint & {
+  status: number;
+  state: 'reached' | 'missed' | 'not-logged';
+};
 
 function todayStr(): string {
   return new Date().toISOString().split('T')[0];
@@ -42,7 +55,36 @@ function logValue(history: DatedNumberLog[] | undefined, date: string): number {
   return history?.find((entry) => entry.date === date)?.value ?? 0;
 }
 
-function chartData(history: DatedNumberLog[] | undefined, period: Period, language: 'en' | 'he', search = '') {
+function shortDateLabel(date: Date, period: Period, language: 'en' | 'he'): string {
+  if (period === 'week') {
+    return formatDateValue(date, language, { weekday: 'short' });
+  }
+  return formatDateValue(date, language, { month: 'short', day: 'numeric' });
+}
+
+function chartTickInterval(length: number): number {
+  if (length <= 7) return 0;
+  if (length <= 30) return 4;
+  return 11;
+}
+
+function chartBarSize(length: number): number {
+  if (length <= 7) return 22;
+  if (length <= 30) return 10;
+  return 4;
+}
+
+function axisValue(value: number, unit: string): string {
+  if (unit === 'ml') {
+    return value >= 1000 ? `${Number((value / 1000).toFixed(1))}L` : `${value}`;
+  }
+  if (value >= 1000) {
+    return `${Number((value / 1000).toFixed(1))}k`;
+  }
+  return `${value}`;
+}
+
+function chartData(history: DatedNumberLog[] | undefined, period: Period, language: 'en' | 'he', search = ''): ChartPoint[] {
   const days = periodDays(period);
   const start = addDays(new Date(), -(days - 1));
   const values = new Map((history ?? []).map((entry) => [entry.date, entry.value]));
@@ -51,10 +93,13 @@ function chartData(history: DatedNumberLog[] | undefined, period: Period, langua
   const data = Array.from({ length: days }, (_, index) => {
     const date = addDays(start, index);
     const key = isoDate(date);
+    const hasEntry = values.has(key);
     return {
       date: key,
       label: formatDateValue(date, language, { month: 'short', day: 'numeric' }),
+      shortLabel: shortDateLabel(date, period, language),
       value: values.get(key) ?? 0,
+      hasEntry,
     };
   });
   return normalizedSearch
@@ -62,11 +107,17 @@ function chartData(history: DatedNumberLog[] | undefined, period: Period, langua
     : data;
 }
 
-function waterConsistencyData(history: DatedNumberLog[] | undefined, period: Period, language: 'en' | 'he', goal: number, search = '') {
+function waterConsistencyData(
+  history: DatedNumberLog[] | undefined,
+  period: Period,
+  language: 'en' | 'he',
+  goal: number,
+  search = '',
+): WaterConsistencyPoint[] {
   return chartData(history, period, language, search).map((entry) => ({
     ...entry,
-    reached: entry.value >= goal ? 1 : 0,
-    missed: entry.value >= goal ? 0 : 1,
+    status: entry.hasEntry ? 1 : 0.35,
+    state: !entry.hasEntry ? 'not-logged' : entry.value >= goal ? 'reached' : 'missed',
   }));
 }
 
@@ -359,7 +410,7 @@ function HistoryChart({
   language,
   testId = 'wellness-history-chart',
 }: {
-  data: Array<{ date: string; label: string; value: number }>;
+  data: ChartPoint[];
   unit: string;
   goal: number;
   language: 'en' | 'he';
@@ -368,17 +419,35 @@ function HistoryChart({
   return (
     <div className="mt-4 h-44" data-testid={testId}>
       <ResponsiveContainer width="100%" height="100%">
-        <LineChart data={data}>
-          <CartesianGrid strokeDasharray="3 3" stroke="#EFE4D2" />
-          <XAxis dataKey="label" tick={{ fontSize: 10, fill: '#8F7F90' }} tickLine={false} />
-          <YAxis tick={{ fontSize: 10, fill: '#8F7F90' }} tickLine={false} width={42} />
+        <BarChart data={data} barCategoryGap={data.length > 30 ? '35%' : '20%'}>
+          <CartesianGrid strokeDasharray="3 3" stroke="#EFE4D2" vertical={false} />
+          <XAxis
+            dataKey="shortLabel"
+            tick={{ fontSize: 10, fill: '#8F7F90' }}
+            tickLine={false}
+            interval={chartTickInterval(data.length)}
+            minTickGap={8}
+          />
+          <YAxis
+            tick={{ fontSize: 10, fill: '#8F7F90' }}
+            tickLine={false}
+            width={42}
+            tickFormatter={(value: number) => axisValue(value, unit)}
+          />
           <Tooltip
             contentStyle={{ borderRadius: 12, border: '1px solid #EFE4D2', fontSize: 12 }}
             formatter={(value: number) => [unit ? formatAmountWithUnit(value, unit, language) : value.toLocaleString(), '']}
           />
-          <Line type="monotone" dataKey="value" stroke="#5C7A58" strokeWidth={2.5} dot={{ r: 2.5, fill: '#5C7A58' }} />
-          <Line type="monotone" dataKey={() => goal} stroke="#E8876A" strokeWidth={1.5} dot={false} strokeDasharray="4 4" />
-        </LineChart>
+          <ReferenceLine y={goal} stroke="#E8876A" strokeWidth={1.5} strokeDasharray="4 4" />
+          <Bar dataKey="value" radius={[8, 8, 0, 0]} maxBarSize={chartBarSize(data.length)}>
+            {data.map((entry) => (
+              <Cell
+                key={entry.date}
+                fill={!entry.hasEntry ? '#EFE4D2' : entry.value >= goal ? '#5C7A58' : '#D8C6B0'}
+              />
+            ))}
+          </Bar>
+        </BarChart>
       </ResponsiveContainer>
     </div>
   );
@@ -389,28 +458,64 @@ function WaterConsistencyChart({
   language,
   copy,
 }: {
-  data: Array<{ date: string; label: string; value: number; reached: number; missed: number }>;
+  data: WaterConsistencyPoint[];
   language: 'en' | 'he';
   copy: ReturnType<typeof useI18n>['copy'];
 }) {
   return (
     <div className="mt-4 h-36" data-testid="water-consistency-chart">
       <ResponsiveContainer width="100%" height="100%">
-        <BarChart data={data}>
+        <BarChart data={data} barCategoryGap={data.length > 30 ? '35%' : '20%'}>
           <CartesianGrid strokeDasharray="3 3" stroke="#EFE4D2" vertical={false} />
-          <XAxis dataKey="label" tick={{ fontSize: 10, fill: '#8F7F90' }} tickLine={false} />
+          <XAxis
+            dataKey="shortLabel"
+            tick={{ fontSize: 10, fill: '#8F7F90' }}
+            tickLine={false}
+            interval={chartTickInterval(data.length)}
+            minTickGap={8}
+          />
           <YAxis hide domain={[0, 1]} />
           <Tooltip
             contentStyle={{ borderRadius: 12, border: '1px solid #EFE4D2', fontSize: 12 }}
-            formatter={(_, __, item: any) => [
-              item?.payload?.reached ? copy.wellness.water.reachedGoal : copy.wellness.water.missedGoal,
+            formatter={(_, __, item) => [
+              item?.payload?.state === 'reached'
+                ? copy.wellness.water.reachedGoal
+                : item?.payload?.state === 'missed'
+                ? copy.wellness.water.missedGoal
+                : copy.wellness.water.notLogged,
               formatAmountWithUnit(item?.payload?.value ?? 0, 'ml', language),
             ]}
           />
-          <Bar dataKey="reached" stackId="goal" fill="#5C7A58" radius={[8, 8, 0, 0]} />
-          <Bar dataKey="missed" stackId="goal" fill="#EFE4D2" radius={[8, 8, 0, 0]} />
+          <Bar dataKey="status" radius={[8, 8, 0, 0]} maxBarSize={chartBarSize(data.length)}>
+            {data.map((entry) => (
+              <Cell
+                key={entry.date}
+                fill={
+                  entry.state === 'reached'
+                    ? '#5C7A58'
+                    : entry.state === 'missed'
+                    ? '#E8B84F'
+                    : '#EFE4D2'
+                }
+              />
+            ))}
+          </Bar>
         </BarChart>
       </ResponsiveContainer>
+      <div className="mt-2 flex flex-wrap gap-3 text-[10px] text-ink-40">
+        <LegendDot color="#5C7A58" label={copy.wellness.water.reachedGoal} />
+        <LegendDot color="#E8B84F" label={copy.wellness.water.missedGoal} />
+        <LegendDot color="#EFE4D2" label={copy.wellness.water.notLogged} />
+      </div>
     </div>
+  );
+}
+
+function LegendDot({ color, label }: { color: string; label: string }) {
+  return (
+    <span className="inline-flex items-center gap-1.5">
+      <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: color }} />
+      <span>{label}</span>
+    </span>
   );
 }

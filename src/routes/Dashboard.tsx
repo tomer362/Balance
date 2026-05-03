@@ -183,7 +183,7 @@ export default function Dashboard() {
       </div>
 
       <button
-        onClick={() => setShowWeightSheet(true)}
+        onClick={() => navigate('/progress?section=weight')}
         data-testid="dashboard-weight-update"
         className="mx-5 mt-3 w-[calc(100%-2.5rem)] bg-cream-card rounded-2xl border border-sand/60 px-4 py-3 flex items-center gap-3 text-left shadow-sm"
       >

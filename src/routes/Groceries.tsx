@@ -116,6 +116,24 @@ function fallbackItemsForMeal(meal: MealItem): Array<Omit<GroceryItem, 'id' | 'c
     .map((name) => ({ name, amountG: 150, category: 'pantry' as const }));
 }
 
+function getSwapSuggestionsForSlot(profile: NonNullable<ReturnType<typeof selectActiveProfile>>, slot: SlotKey, currentMealId?: string) {
+  const topMatches = getSuggestions(profile, 24).filter(
+    (meal) => meal.id !== currentMealId && meal.meal_types.includes(slot),
+  );
+
+  if (topMatches.length >= 3) return topMatches.slice(0, 3);
+
+  const fallbackMatches: ReturnType<typeof getSuggestions> = allMeals
+    .filter((meal) => meal.id !== currentMealId && meal.meal_types.includes(slot) && !topMatches.some((item) => item.id === meal.id))
+    .map((meal) => ({
+      ...meal,
+      suggestionScore: 0,
+      closedGaps: [],
+    }));
+
+  return [...topMatches, ...fallbackMatches].slice(0, 3);
+}
+
 export default function Groceries() {
   const { copy, language } = useI18n();
   const navigate = useNavigate();
@@ -215,7 +233,8 @@ export default function Groceries() {
     setSwapTarget(null);
   }
 
-  const swapSuggestions = swapTarget ? getSuggestions(profile, 3) : [];
+  const currentSwapMealId = swapTarget ? profile.mealPlan[swapTarget.dateKey]?.[swapTarget.slot] : undefined;
+  const swapSuggestions = swapTarget ? getSwapSuggestionsForSlot(profile, swapTarget.slot, currentSwapMealId) : [];
 
   const checkedCount = groceries.filter((g) => g.checked).length;
   const plannedMealCount = plannedMealsForWeek.length;
@@ -300,33 +319,17 @@ export default function Groceries() {
             </div>
 
             {SLOTS.map(({ label, slot, meal }) => (
-              <div key={slot} className="bg-cream-card rounded-2xl border border-sand p-4">
-                <p className="text-xs font-semibold text-ink-40 uppercase tracking-wide mb-2">{label}</p>
-                {meal ? (
-                  <div>
-                    <div className="flex items-center justify-between">
-                      <span className="text-sm font-medium text-plum-dark">{mealDisplayName(meal, language)}</span>
-                      <ScoreBadge score={profile.mode === 'pcos' ? meal.pcos_score : (meal.bulk_score ?? meal.pcos_score)} size="sm" />
-                    </div>
-                    <p className="text-xs text-ink-40 mt-1">{formatAmountWithUnit(meal.nutrition.calories, copy.common.kcal, language)} · {formatAmountWithUnit(meal.nutrition.protein_g, `g ${copy.common.protein}`, language, 1)}</p>
-                    <div className="flex gap-2 mt-2">
-                      <button
-                        onClick={() => setSwapTarget({ dateKey: selectedKey, slot })}
-                        className="text-xs text-ink-60 border border-sand rounded-lg px-2.5 py-1 hover:bg-sand transition-colors"
-                      >
-                        {copy.groceries.swap}
-                      </button>
-                    </div>
-                  </div>
-                ) : (
-                  <button
-                    onClick={() => navigate(`/log?mealType=${slot}`)}
-                    className="text-xs text-coral-accent font-medium"
-                  >
-                    + {copy.groceries.addMeal}
-                  </button>
-                )}
-              </div>
+              <MealPlanSlotCard
+                key={slot}
+                label={label}
+                slot={slot}
+                meal={meal}
+                language={language}
+                profileMode={profile.mode}
+                copy={copy}
+                onSwap={() => setSwapTarget({ dateKey: selectedKey, slot })}
+                onAdd={() => navigate(`/log?mealType=${slot}`)}
+              />
             ))}
 
             {/* Shopping list CTA */}
@@ -470,6 +473,100 @@ export default function Groceries() {
           </div>
         </div>
       )}
+    </div>
+  );
+}
+
+function MealPlanSlotCard({
+  label,
+  slot,
+  meal,
+  language,
+  profileMode,
+  copy,
+  onSwap,
+  onAdd,
+}: {
+  label: string;
+  slot: SlotKey;
+  meal: MealItem | null;
+  language: 'en' | 'he';
+  profileMode: 'pcos' | 'bulk' | 'maintain';
+  copy: ReturnType<typeof useI18n>['copy'];
+  onSwap: () => void;
+  onAdd: () => void;
+}) {
+  const [touchStartX, setTouchStartX] = useState<number | null>(null);
+  const [swipeOffset, setSwipeOffset] = useState(0);
+
+  function resetSwipe() {
+    setTouchStartX(null);
+    setSwipeOffset(0);
+  }
+
+  function handleTouchStart(event: React.TouchEvent<HTMLDivElement>) {
+    if (!meal) return;
+    setTouchStartX(event.touches[0]?.clientX ?? null);
+  }
+
+  function handleTouchMove(event: React.TouchEvent<HTMLDivElement>) {
+    if (!meal || touchStartX === null) return;
+    const delta = (event.touches[0]?.clientX ?? touchStartX) - touchStartX;
+    setSwipeOffset(delta < 0 ? Math.max(delta, -72) : 0);
+  }
+
+  function handleTouchEnd() {
+    if (!meal) return;
+    const shouldOpenSwap = swipeOffset <= -56;
+    resetSwipe();
+    if (shouldOpenSwap) onSwap();
+  }
+
+  return (
+    <div className="relative overflow-hidden rounded-2xl">
+      {meal && (
+        <div className="absolute inset-y-0 right-0 flex w-20 items-center justify-center rounded-2xl bg-sage-deep text-xs font-semibold text-white">
+          {copy.groceries.swap}
+        </div>
+      )}
+
+      <div
+        onTouchStart={handleTouchStart}
+        onTouchMove={handleTouchMove}
+        onTouchEnd={handleTouchEnd}
+        onTouchCancel={handleTouchEnd}
+        className="relative bg-cream-card rounded-2xl border border-sand p-4 transition-transform"
+        style={{
+          transform: meal ? `translateX(${swipeOffset}px)` : undefined,
+          touchAction: 'pan-y',
+        }}
+        data-testid={`meal-slot-${slot}`}
+      >
+        <p className="text-xs font-semibold text-ink-40 uppercase tracking-wide mb-2">{label}</p>
+        {meal ? (
+          <div>
+            <div className="flex items-center justify-between gap-2">
+              <span className="min-w-0 text-sm font-medium text-plum-dark">{mealDisplayName(meal, language)}</span>
+              <ScoreBadge score={profileMode === 'pcos' ? meal.pcos_score : (meal.bulk_score ?? meal.pcos_score)} size="sm" />
+            </div>
+            <p className="text-xs text-ink-40 mt-1">
+              {formatAmountWithUnit(meal.nutrition.calories, copy.common.kcal, language)} · {formatAmountWithUnit(meal.nutrition.protein_g, `g ${copy.common.protein}`, language, 1)}
+            </p>
+            <div className="flex gap-2 mt-2">
+              <button
+                onClick={onSwap}
+                className="text-xs text-ink-60 border border-sand rounded-lg px-2.5 py-1 hover:bg-sand transition-colors"
+              >
+                {copy.groceries.swap}
+              </button>
+            </div>
+          </div>
+        ) : (
+          <button onClick={onAdd} className="text-xs text-coral-accent font-medium">
+            + {copy.groceries.addMeal}
+          </button>
+        )}
+      </div>
     </div>
   );
 }

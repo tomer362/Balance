@@ -353,6 +353,7 @@ const translations = {
         dailyAverage: 'Daily average',
         reachedGoal: 'Reached goal',
         missedGoal: 'Missed goal',
+        notLogged: 'Not logged',
       },
     },
     scanner: {
@@ -987,6 +988,7 @@ const translations = {
         dailyAverage: 'ממוצע יומי',
         reachedGoal: 'עמד ביעד',
         missedGoal: 'לא עמד ביעד',
+        notLogged: 'לא נרשם',
       },
     },
     scanner: {

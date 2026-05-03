@@ -69,9 +69,10 @@ Status message: green when under limit, terracotta when over.
 
   **Tab: Full meals**
   - Searchable scrollable list of the cheat meal catalogue (`cheatMealDatabase.ts`)
-  - Selecting a catalogue item pre-fills the name field and attaches `NutritionData`
+  - Selecting a catalogue item pre-fills the name field and attaches its `NutritionData`
   - Selected item shows a full macro breakdown (kcal, protein, carbs, fat, sat fat, fiber, sugar, sodium)
-  - "Custom / type your own" link exits catalogue mode
+  - The selected catalogue meal can stay attached even if the user manually edits the entry name
+  - "Custom / type your own" link clears the selected catalogue meal only; it does not remove ingredient picks
 
   **Tab: Ingredients**
   - Search input using `searchIngredients()` from `ingredientDatabase.ts`
@@ -79,7 +80,15 @@ Status message: green when under limit, terracotta when over.
   - Clicking an ingredient adds it to the **basket** with `common_serving_g` as the default amount
   - Basket rows: editable gram input with +5 / −5 steppers, live per-item macros, remove button
   - **Basket total** panel: sums all scaled `NutritionData` values field-by-field in real time
-  - On save: `basketNutrition` stored as `nutrition`, each basket item stored in `loggedIngredients[]`
+  - Ingredients can be combined with a selected full meal in the same cheat meal entry
+
+  **Combined save behaviour**
+  - A single cheat meal entry may contain:
+    1. only a catalogue meal
+    2. only ingredients
+    3. a catalogue meal **plus** ingredients
+  - The final `nutrition` payload is the sum of the selected catalogue meal nutrition and the ingredient basket nutrition
+  - `selectedCheatId` persists the chosen catalogue meal, while `loggedIngredients[]` persists the ingredient breakdown
 
 - Add button (enabled when name is non-empty, or a catalogue item is selected, or basket has ≥1 item)
 
@@ -127,7 +136,8 @@ basket.reduce((acc, { ingredient, amountG }) => {
 ```
 
 Saved state:
-- `nutrition` ← `basketNutrition` (summed NutritionData)
+- `nutrition` ← combined total of `selectedCatalogueItem.nutrition + basketNutrition`
+- `selectedCheatId` ← selected full-meal catalogue id (if any)
 - `loggedIngredients` ← `[{ ingredientId, amountG, name }]` for display in history
 
 ---
