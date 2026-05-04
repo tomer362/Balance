@@ -27,6 +27,11 @@ function AppLayout() {
   const profile = useAppStore((s) => s.profiles.find((p) => p.id === s.activeProfileId));
   const setHabitSettings = useAppStore((s) => s.setHabitSettings);
 
+
+  useEffect(() => {
+    window.scrollTo({ top: 0, left: 0, behavior: 'auto' });
+  }, [location.pathname, location.search]);
+
   useEffect(() => {
     const root = document.documentElement;
     root.dataset.theme = settings.theme;
