@@ -363,12 +363,12 @@ export default function Wellness() {
             <Metric label={copy.wellness.today} value={todaySteps.toLocaleString()} />
             <Metric label={copy.wellness.goal} value={settings.stepGoal.toLocaleString()} />
           </div>
-          <div className="mt-3 grid grid-cols-[0.8fr_1fr] gap-2">
+          <div className="mt-3 grid min-w-0 grid-cols-[0.8fr_1fr] gap-2">
             <input
               type="date"
               value={stepsDate}
               onChange={(e) => setStepsDate(e.target.value)}
-              className="rounded-xl border border-sand bg-cream-bg px-3 py-2 text-sm text-plum-dark"
+              className="min-w-0 rounded-xl border border-sand bg-cream-bg px-3 py-2 text-sm text-plum-dark"
               data-testid="steps-date-input"
             />
             <button
@@ -410,14 +410,14 @@ export default function Wellness() {
               )}
             </div>
             {editingWorkoutGoal && (
-              <div className="mt-3 grid grid-cols-[1fr_auto_auto] gap-2">
+              <div className="mt-3 grid min-w-0 grid-cols-[1fr_auto_auto] gap-2">
                 <input
                   type="number"
                   min="0"
                   max="14"
                   value={workoutGoalText}
                   onChange={(e) => setWorkoutGoalText(e.target.value)}
-                  className="rounded-xl border border-sand bg-cream-bg px-3 py-2 text-sm text-plum-dark"
+                  className="min-w-0 rounded-xl border border-sand bg-cream-bg px-3 py-2 text-sm text-plum-dark"
                   data-testid="workout-goal-input"
                 />
                 <button
@@ -459,12 +459,12 @@ export default function Wellness() {
             <Metric label={copy.wellness.today} value={formatAmountWithUnit(todayWater, 'ml', language)} />
             <Metric label={copy.wellness.goal} value={formatAmountWithUnit(settings.waterGoalMl, 'ml', language)} />
           </div>
-          <div className="mt-3 grid grid-cols-[0.8fr_1fr] gap-2">
+          <div className="mt-3 grid min-w-0 grid-cols-[0.8fr_1fr] gap-2">
             <input
               type="date"
               value={waterDate}
               onChange={(e) => setWaterDate(e.target.value)}
-              className="rounded-xl border border-sand bg-cream-bg px-3 py-2 text-sm text-plum-dark"
+              className="min-w-0 rounded-xl border border-sand bg-cream-bg px-3 py-2 text-sm text-plum-dark"
               data-testid="water-date-input"
             />
             <input
@@ -473,7 +473,7 @@ export default function Wellness() {
               value={waterText}
               onChange={(e) => setWaterText(e.target.value)}
               placeholder={copy.wellness.water.placeholder}
-              className="rounded-xl border border-sand bg-cream-bg px-3 py-2 text-sm text-plum-dark"
+              className="min-w-0 rounded-xl border border-sand bg-cream-bg px-3 py-2 text-sm text-plum-dark"
               data-testid="water-input"
             />
           </div>

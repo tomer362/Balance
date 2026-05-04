@@ -525,8 +525,8 @@ export default function Progress() {
                     >
                       {editingWeightDate === entry.date ? (
                         <div className="space-y-2">
-                          <div className="grid grid-cols-[1fr_0.8fr] gap-2">
-                            <label className="text-[11px] font-medium text-ink-60">
+                          <div className="grid min-w-0 grid-cols-[1fr_0.8fr] gap-2">
+                            <label className="min-w-0 text-[11px] font-medium text-ink-60">
                               {copy.progress.entryDate}
                               <input
                                 type="date"
@@ -536,7 +536,7 @@ export default function Progress() {
                                 data-testid="weight-entry-date-input"
                               />
                             </label>
-                            <label className="text-[11px] font-medium text-ink-60">
+                            <label className="min-w-0 text-[11px] font-medium text-ink-60">
                               {copy.progress.entryWeight}
                               <input
                                 type="number"
