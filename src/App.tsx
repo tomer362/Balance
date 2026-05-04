@@ -27,6 +27,19 @@ function AppLayout() {
   const profile = useAppStore((s) => s.profiles.find((p) => p.id === s.activeProfileId));
   const setHabitSettings = useAppStore((s) => s.setHabitSettings);
 
+
+  useEffect(() => {
+    const scrollTop = () => {
+      window.scrollTo({ top: 0, left: 0, behavior: 'auto' });
+      document.documentElement.scrollTop = 0;
+      document.body.scrollTop = 0;
+    };
+
+    scrollTop();
+    const raf = window.requestAnimationFrame(scrollTop);
+    return () => window.cancelAnimationFrame(raf);
+  }, [location.key]);
+
   useEffect(() => {
     const root = document.documentElement;
     root.dataset.theme = settings.theme;

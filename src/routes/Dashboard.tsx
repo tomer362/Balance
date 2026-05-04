@@ -113,7 +113,7 @@ export default function Dashboard() {
 
   return (
     <>
-      <div className="main-content overflow-y-auto min-h-screen">
+      <div className="main-content min-h-screen">
       {/* PCOS Phase strip */}
       {profile.mode === 'pcos' && phaseInfo && (
         <div
