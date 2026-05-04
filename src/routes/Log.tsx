@@ -58,10 +58,28 @@ interface ServingPickerProps {
   onCancel: () => void;
 }
 
+type ServingUnit = 'g' | 'ml';
+
+function parseMlFromServingLabel(label: string): number | null {
+  const match = label.match(/(\d+(?:\.\d+)?)\s*ml/i);
+  if (!match) return null;
+  const value = Number(match[1]);
+  return Number.isFinite(value) && value > 0 ? value : null;
+}
+
 function ServingPicker({ defaultG, defaultLabel, onConfirm, onCancel }: ServingPickerProps) {
   const { copy, language } = useI18n();
-  const [gText, setGText] = useState(String(defaultG));
-  const g = Math.max(1, Number(gText) || defaultG);
+  const defaultMl = parseMlFromServingLabel(defaultLabel);
+  const displayUnit: ServingUnit = defaultMl ? 'ml' : 'g';
+  const gramsPerMl = defaultMl ? defaultG / defaultMl : 1;
+  const defaultAmount = displayUnit === 'ml' ? Math.round(defaultMl ?? defaultG) : defaultG;
+
+  const [amountText, setAmountText] = useState(String(defaultAmount));
+  const amount = Math.max(1, Number(amountText) || defaultAmount);
+  const grams = Math.max(1, Math.round(amount * gramsPerMl));
+
+  const step = displayUnit === 'ml' ? 10 : 10;
+  const presets = displayUnit === 'ml' ? [50, 100, 150, 200, 250, 300] : [50, 100, 150, 200, 250, 300];
 
   return (
     <BottomSheet onClose={onCancel}>
@@ -77,7 +95,7 @@ function ServingPicker({ defaultG, defaultLabel, onConfirm, onCancel }: ServingP
 
         <div className="flex items-center gap-3">
           <button
-            onClick={() => setGText(String(Math.max(1, g - 10)))}
+            onClick={() => setAmountText(String(Math.max(1, amount - step)))}
             className="tap-target w-11 h-11 rounded-full bg-sand flex items-center justify-center"
             data-testid="serving-minus"
           >
@@ -87,15 +105,17 @@ function ServingPicker({ defaultG, defaultLabel, onConfirm, onCancel }: ServingP
             <input
               type="number"
               inputMode="decimal"
-              value={gText}
-              onChange={(e) => setGText(e.target.value)}
+              value={amountText}
+              onChange={(e) => setAmountText(e.target.value)}
               className="flex-1 bg-transparent text-center text-lg font-semibold text-plum-dark focus:outline-none"
               data-testid="serving-input"
             />
-              <span className="text-sm text-ink-40">{language === 'he' ? 'גרם' : 'g'}</span>
+              <span className="text-sm text-ink-40">
+                {displayUnit === 'ml' ? (language === 'he' ? 'מ״ל' : 'ml') : language === 'he' ? 'גרם' : 'g'}
+              </span>
           </div>
           <button
-            onClick={() => setGText(String(g + 10))}
+            onClick={() => setAmountText(String(amount + step))}
             className="tap-target w-11 h-11 rounded-full bg-sand flex items-center justify-center"
             data-testid="serving-plus"
           >
@@ -105,21 +125,21 @@ function ServingPicker({ defaultG, defaultLabel, onConfirm, onCancel }: ServingP
 
         {/* quick presets */}
         <div className="flex gap-2 flex-wrap">
-          {[50, 100, 150, 200, 250, 300].map((preset) => (
+          {presets.map((preset) => (
             <button
               key={preset}
-              onClick={() => setGText(String(preset))}
+              onClick={() => setAmountText(String(preset))}
               className={`px-3 py-1.5 rounded-full text-xs font-medium transition-colors ${
-                g === preset ? 'bg-sage-deep text-white' : 'bg-sand text-ink-60'
+                amount === preset ? 'bg-sage-deep text-white' : 'bg-sand text-ink-60'
               }`}
             >
-              {formatAmountWithUnit(preset, 'g', language)}
+              {formatAmountWithUnit(preset, displayUnit, language)}
             </button>
           ))}
         </div>
 
         <button
-          onClick={() => onConfirm(g)}
+          onClick={() => onConfirm(grams)}
           className="w-full bg-sage-deep text-white py-3.5 rounded-2xl font-semibold"
           data-testid="serving-confirm"
         >
