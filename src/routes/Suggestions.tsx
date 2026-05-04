@@ -59,7 +59,7 @@ export default function Suggestions() {
 
   return (
     <div className="main-content min-h-screen bg-cream-bg">
-      <div className="sticky top-0 z-10 bg-cream-bg px-4 pt-4 pb-3 border-b border-sand/50">
+      <div className="sticky top-0 z-10 h-[50svh] min-h-[360px] overflow-y-auto bg-cream-bg px-4 pt-4 pb-3 border-b border-sand/50">
         <div className="flex items-center gap-3 mb-3">
           <button onClick={() => navigate(-1)} className="p-2 rounded-full hover:bg-sand">
             <ArrowLeft size={20} className={`text-plum-dark ${directionalIconClass(language)}`} />
@@ -106,7 +106,7 @@ export default function Suggestions() {
         </div>
       </div>
 
-      <div className="px-4 pt-4 space-y-4">
+      <div className="px-4 pt-4 space-y-4 min-h-[50svh]">
         {/* Best match */}
         {best && (
           <div>
