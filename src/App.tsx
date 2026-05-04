@@ -1,6 +1,6 @@
 import { useEffect } from 'react';
 import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom';
-import { AnimatePresence, motion } from 'framer-motion';
+import { AnimatePresence, motion, useReducedMotion } from 'framer-motion';
 import BottomNav from './components/BottomNav';
 import Dashboard from './routes/Dashboard';
 import Log from './routes/Log';
@@ -21,6 +21,7 @@ const PAGE_VARIANTS = {
 };
 
 function AppLayout() {
+  const prefersReducedMotion = useReducedMotion();
   const location = useLocation();
   const settings = useAppStore((s) => s.appSettings);
   const profile = useAppStore((s) => s.profiles.find((p) => p.id === s.activeProfileId));
@@ -95,11 +96,11 @@ function AppLayout() {
       <AnimatePresence mode="wait" initial={false}>
         <motion.div
           key={location.pathname}
-          variants={PAGE_VARIANTS}
-          initial="initial"
-          animate="animate"
-          exit="exit"
-          style={{ minHeight: '100vh' }}
+          variants={prefersReducedMotion ? undefined : PAGE_VARIANTS}
+          initial={prefersReducedMotion ? false : 'initial'}
+          animate={prefersReducedMotion ? undefined : 'animate'}
+          exit={prefersReducedMotion ? undefined : 'exit'}
+          style={{ minHeight: '100dvh' }}
         >
           <Routes location={location}>
             <Route path="/" element={<Dashboard />} />
