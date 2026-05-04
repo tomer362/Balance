@@ -417,7 +417,7 @@ export default function Wellness() {
                   max="14"
                   value={workoutGoalText}
                   onChange={(e) => setWorkoutGoalText(e.target.value)}
-                  className="rounded-xl border border-sand bg-white px-3 py-2 text-sm text-plum-dark"
+                  className="rounded-xl border border-sand bg-cream-bg px-3 py-2 text-sm text-plum-dark"
                   data-testid="workout-goal-input"
                 />
                 <button
