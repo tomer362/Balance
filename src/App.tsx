@@ -29,8 +29,16 @@ function AppLayout() {
 
 
   useEffect(() => {
-    window.scrollTo({ top: 0, left: 0, behavior: 'auto' });
-  }, [location.pathname, location.search]);
+    const scrollTop = () => {
+      window.scrollTo({ top: 0, left: 0, behavior: 'auto' });
+      document.documentElement.scrollTop = 0;
+      document.body.scrollTop = 0;
+    };
+
+    scrollTop();
+    const raf = window.requestAnimationFrame(scrollTop);
+    return () => window.cancelAnimationFrame(raf);
+  }, [location.key]);
 
   useEffect(() => {
     const root = document.documentElement;
